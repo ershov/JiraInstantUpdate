@@ -298,7 +298,8 @@ async function reloadActivitySection() {
             throw "Active tab?";
     }
 
-    // TODO: ?actionOrder=asc / actionOrder=desc
+    let isAscendingOrder = !QS('#activitymodule .sortwrap .issue-activity-sort-link[data-order="asc"]');  // the label is the opposite of the actual order
+    // Using ?actionOrder=asc / actionOrder=desc changes the user's defaults, so don't use it.
     let url = `https://jira.mongodb.org/browse/${getIssueKey()}?page=${tabPage}${extra}`;
 
     // document.querySelector('#activitymodule .mod-content').innerHTML =
@@ -310,12 +311,12 @@ async function reloadActivitySection() {
     [...e.content.querySelectorAll('* + .concise')].forEach(e => e.remove());
 
     let getTimestamp = e => new Date(e.querySelector('.livestamp')?.getAttribute("datetime")).getTime();
-    let onPageElements = [...QS(`#issue_actions_container`).children].filter(e => e.querySelector('.livestamp'));
-    let loadedElements = [...QS(`#issue_actions_container`, e.content).children].filter(e => e.querySelector('.livestamp'));
+    let sortFn = (a,b) => getTimestamp(a) - getTimestamp(b);   // Always sort ascending
+    let onPageElements = [...QS(`#issue_actions_container`).children].filter(e => e.querySelector('.livestamp')).sort(sortFn);
+    let loadedElements = [...QS(`#issue_actions_container`, e.content).children].filter(e => e.querySelector('.livestamp')).sort(sortFn);
     // If it's not the full history, only consider elements that are newer than the first element on the page.
     if (onPageElements.length) loadedElements = loadedElements.filter(e => getTimestamp(e) >= getTimestamp(onPageElements[0]));
 
-    // TODO: respect sort order: '.sortwrap .issue-activity-sort-link'
     let i = 0, j = 0, e1, e2;
     while (i < onPageElements.length && j < loadedElements.length) {
         e1 = onPageElements[i];
@@ -327,7 +328,7 @@ async function reloadActivitySection() {
             i++;
         } else if (t1 > t2) {
             // new element
-            e1.insertAdjacentElement('beforeBegin', e2);
+            e1.insertAdjacentElement(isAscendingOrder ? 'beforeBegin' : 'afterEnd', e2);
             e2.style.backgroundColor = "#FFFF0040";
             j++;
         } else {
@@ -344,7 +345,7 @@ async function reloadActivitySection() {
     while (j < loadedElements.length) {
         // new element
         e2 = loadedElements[j++];
-        QS(`#issue_actions_container`).insertAdjacentElement('beforeEnd', e2);
+        QS(`#issue_actions_container`).insertAdjacentElement(isAscendingOrder ? 'beforeEnd' : 'afterBegin', e2);
         e2.style.backgroundColor = "#B0FF0060";
     }
     while (i < onPageElements.length) {
