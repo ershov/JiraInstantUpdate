@@ -9,17 +9,17 @@
 //var D=false;
 //var DEBUG = ()=>{};
 var D=true;
-function DEBUG(...args) {
-    console.log(`[instant] ${DEBUG.caller.name}:`, ...args);
-    // let ss = 0, fn = DEBUG.caller;
-    // while (true) {
-    //     try {
-    //         if (!(fn = fn?.caller)) break;
-    //     } catch (ex) { break; }
-    //     ss++;
-    // }
-    // console.log(`${"  ".repeat(ss)}${DEBUG.caller.name}:`, ...args);
-}
+function DEBUG(...args) { console.log(`[instant] ${DEBUG.caller.name}:`, ...args); }
+//function DEBUG(...args) {
+//    let ss = 0, fn = DEBUG.caller;
+//    while (true) {
+//        try {
+//            if (!(fn = fn?.caller)) break;
+//        } catch (ex) { break; }
+//        ss++;
+//    }
+//    console.log(`${"  ".repeat(ss)}${DEBUG.caller.name}:`, ...args);
+//}
 
 var QS = (q,e) => (e || document).querySelector(q);
 var QA = (q,e) => [...(e || document).querySelectorAll(q)];
@@ -27,13 +27,8 @@ var QA = (q,e) => [...(e || document).querySelectorAll(q)];
 function QQ(q,e) {
     e ||= document;
     if (!Array.isArray(q)) return e.querySelector(q);
-    let q1;
-    for (let it = q[Symbol.iterator](); !it.done; ) {
-        if (!(q1 = it.next().value)) return e;
-        if (!(e = e.querySelector(q1))) return null;
-        if (!(q1 = it.next().value)) return e;
-        if (!(e = e.closest(q1))) return null;
-    }
+    for (let i = 0; e && i < q.length; i++) { e = (i % 2) ? e.closest(q[i]) : e.querySelector(q[i]); }
+    return e;
 }
 
 function fmtDate(d) {
@@ -107,6 +102,32 @@ function updateHTML(sel1, sel2, val) {
 // https://jira.mongodb.org/browse/${getIssueKey()}?page=com.tengen.tengen-jira-plugin:xgen-changehistory-tabpanel&_=1694489139731
 // https://jira.mongodb.org/browse/${getIssueKey()}?page=com.atlassian.streams.streams-jira-plugin:activity-stream-issue-tab&_=1694489139733
 
+function getActiveTab() { return QS(`#issue-tabs > .menu-item.active`)?.id; }
+
+async function reloadActivitySection() {
+    let tabPage = '', extra = '';
+    switch (getActiveTab()) {
+        case 'xgen-all-tabpanel':
+            tabPage = 'com.tengen.tengen-jira-plugin:xgen-all-tabpanel';
+            break;
+        case 'comment-tabpanel':
+            tabPage = 'com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel';
+            extra = QS(`#activitymodule .show-more-comments.aui-button`) ? '' : '&showAll=true';
+            break;
+        case 'xgen-changehistory-tabpanel':
+            tabPage = 'com.tengen.tengen-jira-plugin:xgen-changehistory-tabpanel';
+            break;
+        case 'activity-stream-issue-tab':
+            tabPage = 'com.atlassian.streams.streams-jira-plugin:activity-stream-issue-tab';
+            break;
+        default:
+            throw "Active tab?";
+    }
+    let url = `https://jira.mongodb.org/browse/${getIssueKey()}?page=${tabPage}${extra}`;
+    document.querySelector('#activitymodule .mod-content').innerHTML =
+        await (await fetch(url, {headers: {"X-Pjax": "true", "X-Requested-With": "XMLHttpRequest"}})).text();
+}
+
 async function updateAllComments() {
     D&&DEBUG();
     document.querySelector('#activitymodule .mod-content').innerHTML =
@@ -171,7 +192,7 @@ function initState() {
       genState('assignee',    st => st?.fields?.assignee,            f => updateText('#assignee-val', '#assignee-val .user-hover', f?.displayName)),
       genState('description', st => st?.fields?.description,         f => updateText('#descriptionmodule', '#descriptionmodule .user-content-block', f)),
       //genState('duedate',     st => st?.fields?.,                    f => update('#duedate', '# .', f)),
-      genState('fixVersions', st => st?.fields?.fixVersions,         f => updateText([`#issuedetails #fixfor-val]`, `li`], '#fixfor-val', f.join(', '))),
+      genState('fixVersions', st => st?.fields?.fixVersions,         f => updateText([`#issuedetails #fixfor-val`, `li`], '#fixfor-val', f.map(x => x.name).join(', '))),
       genState('issuelinks',  st => st?.fields?.issuelinks,          f => updateHTML('#linkingmodule', '#linkingmodule .links-container', f.map(l =>
           `<a href="https://jira.mongodb.org/browse/${l?.inwardIssue?.key}">${l?.inwardIssue?.key}</a> ${l?.inwardIssue?.fields?.summary}`).join('<BR>'))),
       genState('issuetype',   st => st?.fields?.issuetype,           f => updateText([`#issuedetails #type-val`, `li`], '#type-val', f.name)),
