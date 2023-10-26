@@ -292,15 +292,14 @@ function processNewStatus(status, oldStatus) {
 function getActiveTab() { return QS(`#issue-tabs > .menu-item.active`)?.id; }
 
 async function reloadActivitySection() {
-    let tabPage = '', extra = '';
-    let isFullHistory = !QS(`#activitymodule .show-more-comments.aui-button`);
+    let tabPage = '';
+    //let isFullHistory = !QS(`#activitymodule .show-more-comments.aui-button`);
     switch (getActiveTab()) {
         case 'xgen-all-tabpanel':
             tabPage = 'com.tengen.tengen-jira-plugin:xgen-all-tabpanel';
             break;
         case 'comment-tabpanel':
             tabPage = 'com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel';
-            extra = isFullHistory ? '&showAll=true' : '';
             break;
         case 'xgen-changehistory-tabpanel':
             tabPage = 'com.tengen.tengen-jira-plugin:xgen-changehistory-tabpanel';
@@ -312,9 +311,10 @@ async function reloadActivitySection() {
             throw "Active tab?";
     }
 
-    let isAscendingOrder = !QS('#activitymodule .sortwrap .issue-activity-sort-link[data-order="asc"]');  // the label is the opposite of the actual order
+    let isAscendingOrder = !QS('#activitymodule .sortwrap .issue-activity-sort-link[data-order="asc"]');  // the label is the opposite to the actual order
     // Using ?actionOrder=asc / actionOrder=desc changes the user's defaults, so don't use it.
-    let url = `https://jira.mongodb.org/browse/${getIssueKey()}?page=${tabPage}${extra}`;
+    // Always load full history: if it's not full, then the earliest message will disappear and will be considered as deleted.
+    let url = `https://jira.mongodb.org/browse/${getIssueKey()}?page=${tabPage}&showAll=true`;
 
     // document.querySelector('#activitymodule .mod-content').innerHTML =
     //     await (await fetch(url, {headers: {"X-Pjax": "true", "X-Requested-With": "XMLHttpRequest"}})).text();
