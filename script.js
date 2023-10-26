@@ -168,7 +168,7 @@ var fieldHandlers = {
         // stateForCmp = state => (state || "").replace(/^.*devSummaryJson=/, "");  // this doesn't work because ".stale" can change for no reason
         stateForCmp = state => JSON.stringify(this.parse(state || ""));
         onUpdate(fieldId, newVal, oldVal) {
-            let json = this.parse(newVal);
+            let json = newVal ? this.parse(newVal) : null;
             if (!isObject(json?.summary)) return;
 
             let devPanel = QS("#viewissue-devstatus-panel");
@@ -261,7 +261,7 @@ var fieldHandlers = {
 var fieldHandlerInstances = Object.entries(fieldHandlers).reduce((a, [k, v]) => (a[k] = new v(), a), {});
 
 function processNewStatus(status, oldStatus) {
-    if (!oldStatus || status.key !== oldStatus?.key) return;
+    if (!status || !oldStatus || status?.key !== oldStatus?.key) return;
     if (!status.fields) return;
     for (let fieldId of Object.keys(status.fields)) {
         let handler = fieldHandlerInstances[fieldId] || defaultHandler;
@@ -390,8 +390,13 @@ async function update() {
 
     D&&DEBUG('Checking getState');
     let newState = await getState();
-    processNewStatus(newState, state);
-    state = newState;
+    if (newState?.fields) {
+        processNewStatus(newState, state);
+        state = newState;
+    } else {
+        console.error("Error getting state: ", newState);
+        throw "Error getting state: " + JSON.stringify(newState);
+    }
 }
 
 async function checkUpdate() {
