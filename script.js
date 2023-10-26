@@ -270,7 +270,11 @@ function processNewStatus(status, oldStatus) {
         if (!handler.isEqual(status.fields[fieldId], oldStatus?.fields?.[fieldId])) {
             updateIcon(true);
             D&&DEBUG('Field update:', status.names?.[fieldId], fieldId, oldStatus?.fields?.[fieldId], ' => ', status.fields[fieldId]);
-            handler.onUpdate(fieldId, status.fields[fieldId], oldStatus?.fields?.[fieldId], status.renderedFields?.[fieldId]);
+            try {
+                handler.onUpdate(fieldId, status.fields[fieldId], oldStatus?.fields?.[fieldId], status.renderedFields?.[fieldId]);
+            } catch (ex) {
+                console.error(`Error updating field ${fieldId}: `, ex);
+            }
         }
     }
 }
