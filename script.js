@@ -1,52 +1,3 @@
-
-/* Shift-click on code scrollbar expands the code */
-document.addEventListener("mousedown", ev =>
-  ev.shiftKey &&
-  ev.target?.id === "syntaxplugin" && (
-    (ev.target.style.maxHeight = ev.target.style.maxHeight ? "" : "30em"),
-     event.preventDefault()
-  )
-);
-
-document.addEventListener("mousedown", ev =>
-  ev.shiftKey &&
-  ev.altKey &&
-  ev.target?.id != "syntaxplugin" &&
-  (e = ev.target.closest(".syntaxplugin#syntaxplugin")) && (
-    (e.style.maxHeight = e.style.maxHeight ? "" : "30em"),
-    event.preventDefault(),
-    ev.cancelBubble = true
-  ),
-true);
-
-/* Alt-click on code scrollbar enables code wrap */
-document.addEventListener("mousedown", ev => { if (ev.altKey && !ev.shiftKey && ev.target.closest(".syntaxplugin#syntaxplugin")) {
-	ev.preventDefault();
-	ev.cancelBubble = true;
-	let e = document.querySelector("#codewrapstyle");
-	if (e) {
-		e.remove();
-	} else {
-		document.head.insertAdjacentHTML("beforeEnd", `
-<style id="codewrapstyle">
-.syntaxplugin tr#syntaxplugin_code_and_gutter pre {
-	text-wrap: wrap;
-	word-break: break-all;
-}
-</style>
-`);
-	}
-}}, {capture: true});
-
-/////////////////////////////////////////////////////
-/////////////////////////////////////////////////////
-/////////////////////////////////////////////////////
-/////////////////////////////////////////////////////
-/////////////////////////////////////////////////////
-/////////////////////////////////////////////////////
-/////////////////////////////////////////////////////
-/////////////////////////////////////////////////////
-
 // https://developer.atlassian.com/cloud/jira/platform/rest/v2/api-group-issue-comments
 // https://docs.atlassian.com/software/jira/docs/api/REST/7.12.0/
 // https://jira.mongodb.org/rest/api/2/myself
@@ -149,6 +100,12 @@ function updateHTML(sel1, sel2, val) {
     (e = QQ(sel2)) && (e.innerHTML = val);
     (e = QQ(sel1)) && (e.style.backgroundColor = "#FFFF0080");
 }
+
+// https://jira.mongodb.org/browse/${getIssueKey()}?page=com.tengen.tengen-jira-plugin:xgen-all-tabpanel&_=1694489139724
+// https://jira.mongodb.org/browse/${getIssueKey()}?page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel&showAll=true
+// https://jira.mongodb.org/browse/${getIssueKey()}?page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel&_=1694489139735
+// https://jira.mongodb.org/browse/${getIssueKey()}?page=com.tengen.tengen-jira-plugin:xgen-changehistory-tabpanel&_=1694489139731
+// https://jira.mongodb.org/browse/${getIssueKey()}?page=com.atlassian.streams.streams-jira-plugin:activity-stream-issue-tab&_=1694489139733
 
 async function updateAllComments() {
     D&&DEBUG();
@@ -272,6 +229,7 @@ var checking = false;
 var lastUpdate = '';
 var lastCheckT = 0;
 var nextCheckTimer = 0;
+var lastLocation = '';
 
 async function update() {
     let key = getIssueKey();
@@ -357,17 +315,25 @@ async function checkUpdate() {
 
 function onUserActive() {
     //D&&DEBUG(`checking = ${checking}   nextCheckTimer = ${nextCheckTimer}`);
-    if (checking || nextCheckTimer) return;
+    if (checking) return;
+    let key = getIssueKey();
+    if (issueKey != key) {
+        D&&DEBUG(`issue key changed: force update ${issueKey} => ${key}`);
+        if (nextCheckTimer) { clearTimeout(nextCheckTimer); nextCheckTimer = 0; }
+        lastCheckT = 0;
+        QS('#instant-update-status')?.remove();
+    }
+    if (nextCheckTimer) return;
     let t = time();
     let dt = t - lastCheckT;
     //D&&DEBUG(`dt = ${dt}`);
     if (dt >= 15000) {
-        D&&DEBUG(`dt = ${dt} - Update now`);
+        D&&DEBUG(`dt = ${dt} : Update now`);
         checkUpdate();
-    } else if (dt < 5000) {
-        //D&&DEBUG(`dt = ${dt} - Ignoring too frequent checks`);
+    } else if (dt < 4000) {
+        //D&&DEBUG(`dt = ${dt} : Ignoring too frequent checks`);
     } else {
-        D&&DEBUG(`dt = ${dt} - Hold update`);
+        D&&DEBUG(`dt = ${dt} : Hold update`);
         dt = 15000 - dt;
         D&&DEBUG(`Checking in ${dt}`);
         nextCheckTimer = setTimeout(async() => {
@@ -386,8 +352,164 @@ function activate() {
       'blur', 'focus',
       'mousemove', 'mousewheel', 'mouseup',
       'keyup',
-    ].forEach(ev => window.addEventListener(ev, onUserActive));
+    ].forEach(ev => window.addEventListener(ev, onUserActive, {passive: true}));
     onUserActive();
 }
 activate();
+
+// monitor URL change:
+// window.addEventListener('popstate', listener);  // or hashchange
+// const pushUrl = (href) => {
+//   history.pushState({}, '', href);
+//   window.dispatchEvent(new Event('popstate'));
+// };
+
+// monitor in-page content changes...
+// if (document.querySelector('.bv2-content')) {
+//   let observer = new MutationObserver((mutations) => {
+//     LOG("Page changed");
+//     prevIssueNo = curIssueNo = 0;
+//     lastState = null;
+//     if (nextCheckTimer) { clearTimeout(nextCheckTimer); nextCheckTimer = 0; }
+//     if (!isChecking) {
+//       LOG(`:Checking NOW`);
+//       CheckNewEvents();
+//     } else {
+//       LOG(`:Checking in 2s`);
+//       nextCheckTimer = setTimeout(() => {
+//         CheckNewEvents();
+//         nextCheckTimer = 0;
+//       }, 2000);
+//     }
+//   });
+//   observer.observe(document.querySelector('.bv2-content'), {childList: true});
+// }
+
+
+/*
+
+status bar:
+
+<div id="instant-update-status">
+<style>
+#instant-update-status {
+  right: 0;
+  bottom: 0;
+  position: fixed;
+  background-color: #FFB8;
+  color: #888F;
+  padding: 0.1em 0.5em;
+  font-size: 8pt;
+  font-weight: 600;
+  z-index: 999;
+  pointer-events: none;
+}
+
+@keyframes spinner-rotate {
+  0%       { transform: rotate(0deg); }
+  100%     { transform: rotate(360deg); }
+}
+
+</style>
+        <svg id="instant-banner-update-icon" height="9" viewBox="0 0 24 24" width="9" fill="#888" fit="" preserveAspectRatio="xMidYMid meet" focusable="false" style="display: none;animation: spinner-rotate 700ms linear infinite;">
+        <path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z">
+        </path>
+        </svg>
+        Auto updated on:
+        <span id="instant-banner-timestamp" style="color:#555"></span>
+</div>
+
+*/
+
+
+
+
+
+
+
+// /* Shift-click on code scrollbar expands the code */
+// document.addEventListener("mousedown", ev =>
+//   ev.shiftKey &&
+//   ev.target?.id === "syntaxplugin" && (
+//     (ev.target.style.maxHeight = ev.target.style.maxHeight ? "" : "30em"),
+//      event.preventDefault()
+//   )
+// );
+
+// document.addEventListener("mousedown", ev =>
+//   ev.shiftKey &&
+//   ev.altKey &&
+//   ev.target?.id != "syntaxplugin" &&
+//   (e = ev.target.closest(".syntaxplugin#syntaxplugin")) && (
+//     (e.style.maxHeight = e.style.maxHeight ? "" : "30em"),
+//     event.preventDefault(),
+//     ev.cancelBubble = true
+//   ),
+// true);
+
+// /* Alt-click on code scrollbar enables code wrap */
+// document.addEventListener("mousedown", ev => { if (ev.altKey && !ev.shiftKey && ev.target.closest(".syntaxplugin#syntaxplugin")) {
+//  ev.preventDefault();
+//  ev.cancelBubble = true;
+//  let e = document.querySelector("#codewrapstyle");
+//  if (e) {
+//    e.remove();
+//  } else {
+//    document.head.insertAdjacentHTML("beforeEnd", `
+// <style id="codewrapstyle">
+// .syntaxplugin tr#syntaxplugin_code_and_gutter pre {
+//  text-wrap: wrap;
+//  word-break: break-all;
+// }
+// </style>
+// `);
+//  }
+// }}, {capture: true});
+
+
+
+
+
+// document.head.insertAdjacentHTML("beforeEnd", `
+// <style>
+// /* Highlight backlog assignee */
+// a[rel^="backlog-"] {
+// 	background-color: #ff800040;
+// }
+// 
+// /* Code quote wrap */
+// /*
+// .syntaxplugin tr#syntaxplugin_code_and_gutter pre {
+// 	text-wrap: wrap;
+// 	word-break: break-all;
+// }
+// */
+// /* Code quote font size */
+// .syntaxplugin tr#syntaxplugin_code_and_gutter pre {
+// 	font-size: 0.8em !important;
+// 	margin: 0 !important;
+// }
+// 
+// /* Code highlight line on mouse hover */
+// .syntaxplugin tr#syntaxplugin_code_and_gutter:hover {
+// 	background-color: #E8E8E8;
+// }
+// 
+// /* Line between the code lines */
+// .syntaxplugin tr#syntaxplugin_code_and_gutter {
+//   outline: 1px dashed #dcdce0;
+// }
+// 
+// /* Proper wrapping for comments */
+// .twixi-block .verbose .flooded, .toggle-wrap .verbose .flooded {
+//     word-break: break-word;
+// }
+// 
+// /* Edit crayon is always visible */
+// .overlay-icon {
+//   opacity: 0.5 !important;
+// 	z-index: auto !important;
+// }
+// </style>
+// `);
 
