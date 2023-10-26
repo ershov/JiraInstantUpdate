@@ -1,19 +1,26 @@
 
-/* Shift-click on code scrollbar expands the code */
+/* Shift-click on code scrollbar or resize corner expands the code */
 document.addEventListener("mousedown", ev =>
-  ev.shiftKey &&
-  ev.target?.id === "syntaxplugin" && (
-    (ev.target.style.maxHeight = ev.target.style.maxHeight ? "" : "30em"),
-     event.preventDefault()
+  ev.shiftKey && !ev.altKey &&
+  ev.target?.id === "syntaxplugin" &&
+	/*ev.target.offsetHeight < ev.target.firstElementChild.offsetHeight && */ (
+    ev.target.style.maxHeight = '',
+	  ev.target.style.height = ev.target.style.height ? '' : '30em',
+    ev.target.style.resize="vertical",
+    event.preventDefault()
   )
 );
 
+/* Alt+Shift-click on code adds resize corner */
 document.addEventListener("mousedown", ev =>
   ev.shiftKey &&
   ev.altKey &&
   ev.target?.id != "syntaxplugin" &&
   (e = ev.target.closest(".syntaxplugin#syntaxplugin")) && (
-    (e.style.maxHeight = e.style.maxHeight ? "" : "30em"),
+//    (e.style.maxHeight = e.style.maxHeight ? "" : "30em"),
+		e.style.height=`${e.offsetHeight}px`,
+    e.style.maxHeight='',
+		e.style.resize="vertical",
     event.preventDefault(),
     ev.cancelBubble = true
   ),
