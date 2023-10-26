@@ -142,9 +142,10 @@ var fieldHandlers = {
         getValElementSel     = () => "#attachmentmodule #attachment_thumbnails";
         getWrapperElementSel = () => "#attachmentmodule #attachment_thumbnails";
         isHtml = () => true;
-        render = val => `<li>
-    <div class="attachment-thumb"><img src="${escapeHTML(val?.filename || "")}"></div>
-    <dl><dt>${escapeHTML(val?.filename || "?")}</dt></dl>
+        renderObject = val => `<li>
+    <a href="${escapeHTML(val?.content || "")}">
+        <dl><dt>${escapeHTML(val?.filename || "?")}</dt></dl>
+    </a>
 </li>`;
     },
     // TODO: this is an async function: make a guard
