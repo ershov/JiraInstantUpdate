@@ -1,65 +1,3 @@
-
-/* Shift-click on code scrollbar or resize corner expands the code */
-document.addEventListener("mousedown", ev =>
-  ev.shiftKey && !ev.altKey &&
-  ev.target?.id === "syntaxplugin" &&
-	/*ev.target.offsetHeight < ev.target.firstElementChild.offsetHeight && */ (
-    ev.target.style.maxHeight = '',
-	  ev.target.style.height = ev.target.style.height ? '' : '30em',
-    ev.target.style.resize="vertical",
-    event.preventDefault()
-  )
-);
-
-/* Alt+Shift-click on code adds resize corner */
-document.addEventListener("mousedown", ev =>
-  ev.shiftKey &&
-  ev.altKey &&
-  ev.target?.id != "syntaxplugin" &&
-  (e = ev.target.closest(".syntaxplugin#syntaxplugin")) && (
-//    (e.style.maxHeight = e.style.maxHeight ? "" : "30em"),
-		e.style.height=`${e.offsetHeight}px`,
-    e.style.maxHeight='',
-		e.style.resize="vertical",
-    event.preventDefault(),
-    ev.cancelBubble = true
-  ),
-true);
-
-/* Alt-click on code scrollbar enables code wrap */
-document.addEventListener("mousedown", ev => { if (ev.altKey && !ev.shiftKey && ev.target.closest(".syntaxplugin#syntaxplugin")) {
-	ev.preventDefault();
-	ev.cancelBubble = true;
-	let e = document.querySelector("#codewrapstyle");
-	if (e) {
-		e.remove();
-	} else {
-		document.head.insertAdjacentHTML("beforeEnd", `
-<style id="codewrapstyle">
-.syntaxplugin tr#syntaxplugin_code_and_gutter pre {
-	text-wrap: wrap;
-	word-break: break-all;
-}
-</style>
-`);
-	}
-}}, {capture: true});
-
-// Auto-expand links
-document.querySelector('#show-more-links-link')?.click();
-
-// Auto-expand participants
-[...document.querySelectorAll('.ellipsis.shortener-expand')].forEach(e => e.click())
-
-/////////////////////////////////////////////////////
-/////////////////////////////////////////////////////
-/////////////////////////////////////////////////////
-/////////////////////////////////////////////////////
-/////////////////////////////////////////////////////
-/////////////////////////////////////////////////////
-/////////////////////////////////////////////////////
-/////////////////////////////////////////////////////
-
 // https://developer.atlassian.com/cloud/jira/platform/rest/v2/api-group-issue-comments
 // https://docs.atlassian.com/software/jira/docs/api/REST/7.12.0/
 // https://jira.mongodb.org/rest/api/2/myself
@@ -68,10 +6,25 @@ document.querySelector('#show-more-links-link')?.click();
 // branches, pull requests, ... https://jira.mongodb.org/rest/dev-status/1.0/issue/summary?issueId=2436084&_=1694234168146
 // dev status: https://jira.mongodb.org/rest/dev-status/1.0/issue/summary?issueId=2436084 https://jira.mongodb.org/rest/dev-status/1.0/issue/detail?issueId=2436084&applicationType=github&dataType=pullrequest
 
+// https://confluence.atlassian.com/jirakb/how-to-create-issues-using-direct-html-links-in-jira-server-159474.html
+//    add ?expand=names to include field key -> name
+
+// Jira Server platform REST API reference https://docs.atlassian.com/software/jira/docs/api/REST/9.11.0/#api/2/issue-getIssue
+
 //var D=false;
 //var DEBUG = ()=>{};
 var D=true;
 function DEBUG(...args) { console.log(`[instant] ${DEBUG.caller.name}:`, ...args); }
+//function DEBUG(...args) {
+//    let ss = 0, fn = DEBUG.caller;
+//    while (true) {
+//        try {
+//            if (!(fn = fn?.caller)) break;
+//        } catch (ex) { break; }
+//        ss++;
+//    }
+//    console.log(`${"  ".repeat(ss)}${DEBUG.caller.name}:`, ...args);
+//}
 
 var QS = (q,e) => (e || document).querySelector(q);
 var QA = (q,e) => [...(e || document).querySelectorAll(q)];
@@ -148,6 +101,90 @@ function updateHTML(sel1, sel2, val) {
     let e;
     (e = QQ(sel2)) && (e.innerHTML = val);
     (e = QQ(sel1)) && (e.style.backgroundColor = "#FFFF0080");
+}
+
+// https://jira.mongodb.org/browse/${getIssueKey()}?page=com.tengen.tengen-jira-plugin:xgen-all-tabpanel&_=1694489139724
+// https://jira.mongodb.org/browse/${getIssueKey()}?page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel&showAll=true
+// https://jira.mongodb.org/browse/${getIssueKey()}?page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel&_=1694489139735
+// https://jira.mongodb.org/browse/${getIssueKey()}?page=com.tengen.tengen-jira-plugin:xgen-changehistory-tabpanel&_=1694489139731
+// https://jira.mongodb.org/browse/${getIssueKey()}?page=com.atlassian.streams.streams-jira-plugin:activity-stream-issue-tab&_=1694489139733
+
+// https://jira.mongodb.org/browse/WT-11604?actionOrder=desc&_=1695022595793
+// https://jira.mongodb.org/browse/WT-11604?actionOrder=asc&_=1695022595797
+
+function getActiveTab() { return QS(`#issue-tabs > .menu-item.active`)?.id; }
+
+async function reloadActivitySection() {
+    let tabPage = '', extra = '';
+    let isFullHistory = !!QS(`#activitymodule .show-more-comments.aui-button`);
+    switch (getActiveTab()) {
+        case 'xgen-all-tabpanel':
+            tabPage = 'com.tengen.tengen-jira-plugin:xgen-all-tabpanel';
+            break;
+        case 'comment-tabpanel':
+            tabPage = 'com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel';
+            extra = isFullHistory ? '' : '&showAll=true';
+            break;
+        case 'xgen-changehistory-tabpanel':
+            tabPage = 'com.tengen.tengen-jira-plugin:xgen-changehistory-tabpanel';
+            break;
+        case 'activity-stream-issue-tab':
+            tabPage = 'com.atlassian.streams.streams-jira-plugin:activity-stream-issue-tab';
+            break;
+        default:
+            throw "Active tab?";
+    }
+    let url = `https://jira.mongodb.org/browse/${getIssueKey()}?page=${tabPage}${extra}`;
+
+    // document.querySelector('#activitymodule .mod-content').innerHTML =
+    //     await (await fetch(url, {headers: {"X-Pjax": "true", "X-Requested-With": "XMLHttpRequest"}})).text();
+
+    let text = await (await fetch(url, {headers: {"X-Pjax": "true", "X-Requested-With": "XMLHttpRequest"}})).text();
+    let e = document.createElement('template');
+    e.innerHTML = text;
+    [...e.content.querySelectorAll('* + .concise')].forEach(e => e.remove());
+
+    let getTimestamp = e => new Date(e.querySelector('.livestamp')?.getAttribute("datetime")).getTime();
+    let onPageElements = QS(`#issue_actions_container`).children;
+    let loadedElements = QS(`#issue_actions_container`, e.content).children;
+    // If it's not the full history, only consider elements that are newer than the first element on the page.
+    if (onPageElements.length) loadedElements = loadedElements.filter(e => getTimestamp(e) >= getTimestamp(onPageElements[0]));
+
+    // TODO: respect sort order: '.sortwrap .issue-activity-sort-link'
+    let i = 0, j = 0, e1, e2;
+    while (i < onPageElements.length && j < loadedElements.length) {
+        e1 = onPageElements[i];
+        e2 = loadedElements[j];
+        let t1 = getTimestamp(e1), t2 = getTimestamp(e2);
+        if (t1 < t2) {
+            // deleted element
+            e1.style.backgroundColor = "#FF000040"; // e1.remove();
+            i++;
+        } else if (t1 > t2) {
+            // new element
+            e1.insertAdjacentElement('beforeBegin', e2);
+            e2.style.backgroundColor = "#FFFF0040";
+            j++;
+        } else {
+            // update existing element (if needed)
+            if (e1.innerHTML != e2.innerHTML) {
+                e1.replaceWith(e2);
+                e2.style.backgroundColor = "#FFFF0040";
+            }
+            i++; j++;
+        }
+    }
+    while (j < onPageElements.length) {
+        // new element
+        e2 = loadedElements[j++];
+        QS(`#issue_actions_container`).insertAdjacentElement('beforeEnd', e2);
+        e2.style.backgroundColor = "#B0FF0060";
+    }
+    while (i < loadedElements.length) {
+        // deleted element
+        e1 = onPageElements[i++];
+        e1.style.backgroundColor = "#FF000040"; // e1.remove();
+    }
 }
 
 async function updateAllComments() {
@@ -327,7 +364,6 @@ async function checkUpdate() {
   position: fixed;
   background-color: #FFC;
   color: #AAA;
-  border-radius: 0.5em;
   padding: 0 0.5em;
   font-family: Arial;
   font-size: 8pt;
@@ -401,4 +437,163 @@ function activate() {
     onUserActive();
 }
 activate();
+
+// monitor URL change:
+// window.addEventListener('popstate', listener);  // or hashchange
+// const pushUrl = (href) => {
+//   history.pushState({}, '', href);
+//   window.dispatchEvent(new Event('popstate'));
+// };
+
+// monitor in-page content changes...
+// if (document.querySelector('.bv2-content')) {
+//   let observer = new MutationObserver((mutations) => {
+//     LOG("Page changed");
+//     prevIssueNo = curIssueNo = 0;
+//     lastState = null;
+//     if (nextCheckTimer) { clearTimeout(nextCheckTimer); nextCheckTimer = 0; }
+//     if (!isChecking) {
+//       LOG(`:Checking NOW`);
+//       CheckNewEvents();
+//     } else {
+//       LOG(`:Checking in 2s`);
+//       nextCheckTimer = setTimeout(() => {
+//         CheckNewEvents();
+//         nextCheckTimer = 0;
+//       }, 2000);
+//     }
+//   });
+//   observer.observe(document.querySelector('.bv2-content'), {childList: true});
+// }
+
+
+/*
+
+status bar:
+
+<div id="instant-update-status">
+<style>
+#instant-update-status {
+  right: 0;
+  bottom: 0;
+  position: fixed;
+  background-color: #FFB8;
+  color: #888F;
+  padding: 0.1em 0.5em;
+  font-size: 8pt;
+  font-weight: 600;
+  z-index: 999;
+  pointer-events: none;
+}
+
+@keyframes spinner-rotate {
+  0%       { transform: rotate(0deg); }
+  100%     { transform: rotate(360deg); }
+}
+
+</style>
+        <svg id="instant-banner-update-icon" height="9" viewBox="0 0 24 24" width="9" fill="#888" fit="" preserveAspectRatio="xMidYMid meet" focusable="false" style="display: none;animation: spinner-rotate 700ms linear infinite;">
+        <path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z">
+        </path>
+        </svg>
+        Auto updated on:
+        <span id="instant-banner-timestamp" style="color:#555"></span>
+</div>
+
+*/
+
+
+
+
+
+
+
+// /* Shift-click on code scrollbar expands the code */
+// document.addEventListener("mousedown", ev =>
+//   ev.shiftKey &&
+//   ev.target?.id === "syntaxplugin" && (
+//     (ev.target.style.maxHeight = ev.target.style.maxHeight ? "" : "30em"),
+//      event.preventDefault()
+//   )
+// );
+
+// document.addEventListener("mousedown", ev =>
+//   ev.shiftKey &&
+//   ev.altKey &&
+//   ev.target?.id != "syntaxplugin" &&
+//   (e = ev.target.closest(".syntaxplugin#syntaxplugin")) && (
+//     (e.style.maxHeight = e.style.maxHeight ? "" : "30em"),
+//     event.preventDefault(),
+//     ev.cancelBubble = true
+//   ),
+// true);
+
+// // Auto-expand links
+// document.querySelector('#show-more-links-link')?.click();
+
+// /* Alt-click on code scrollbar enables code wrap */
+// document.addEventListener("mousedown", ev => { if (ev.altKey && !ev.shiftKey && ev.target.closest(".syntaxplugin#syntaxplugin")) {
+//  ev.preventDefault();
+//  ev.cancelBubble = true;
+//  let e = document.querySelector("#codewrapstyle");
+//  if (e) {
+//    e.remove();
+//  } else {
+//    document.head.insertAdjacentHTML("beforeEnd", `
+// <style id="codewrapstyle">
+// .syntaxplugin tr#syntaxplugin_code_and_gutter pre {
+//  text-wrap: wrap;
+//  word-break: break-all;
+// }
+// </style>
+// `);
+//  }
+// }}, {capture: true});
+
+
+
+
+
+// document.head.insertAdjacentHTML("beforeEnd", `
+// <style>
+// /* Highlight backlog assignee */
+// a[rel^="backlog-"] {
+// 	background-color: #ff800040;
+// }
+//
+// /* Code quote wrap */
+// /*
+// .syntaxplugin tr#syntaxplugin_code_and_gutter pre {
+// 	text-wrap: wrap;
+// 	word-break: break-all;
+// }
+// */
+// /* Code quote font size */
+// .syntaxplugin tr#syntaxplugin_code_and_gutter pre {
+// 	font-size: 0.8em !important;
+// 	margin: 0 !important;
+// }
+//
+// /* Code highlight line on mouse hover */
+// .syntaxplugin tr#syntaxplugin_code_and_gutter:hover {
+// 	background-color: #E8E8E8;
+// }
+//
+// /* Line between the code lines */
+// .syntaxplugin tr#syntaxplugin_code_and_gutter {
+//   outline: 1px dashed #dcdce0;
+// }
+//
+// /* Proper wrapping for comments */
+// .twixi-block .verbose .flooded, .toggle-wrap .verbose .flooded {
+//     word-break: break-word;
+// }
+//
+// /* Edit crayon is always visible */
+// .overlay-icon {
+//   opacity: 0.5 !important;
+// 	z-index: auto !important;
+// }
+// </style>
+// `);
 
