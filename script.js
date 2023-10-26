@@ -145,8 +145,8 @@ async function reloadActivitySection() {
     [...e.content.querySelectorAll('* + .concise')].forEach(e => e.remove());
 
     let getTimestamp = e => new Date(e.querySelector('.livestamp')?.getAttribute("datetime")).getTime();
-    let onPageElements = QS(`#issue_actions_container`).children;
-    let loadedElements = QS(`#issue_actions_container`, e.content).children;
+    let onPageElements = [...QS(`#issue_actions_container`).children];
+    let loadedElements = [...QS(`#issue_actions_container`, e.content).children];
     // If it's not the full history, only consider elements that are newer than the first element on the page.
     if (onPageElements.length) loadedElements = loadedElements.filter(e => getTimestamp(e) >= getTimestamp(onPageElements[0]));
 
@@ -167,7 +167,9 @@ async function reloadActivitySection() {
             j++;
         } else {
             // update existing element (if needed)
-            if (e1.innerHTML != e2.innerHTML) {
+            let norm1 = QS('.twixi-wrap.verbose.actionContainer .action-body', e1).innerText.replace(/\s+/g, " ").trim();
+            let norm2 = QS('.twixi-wrap.verbose.actionContainer .action-body', e2).innerText.replace(/\s+/g, " ").trim();
+            if (norm1 !== norm2) {
                 e1.replaceWith(e2);
                 e2.style.backgroundColor = "#FFFF0040";
             }
@@ -389,8 +391,7 @@ async function checkUpdate() {
         </svg>
         Auto-updated on:
         <span id="instant-banner-timestamp">${msg}</span>
-</div>
-        `);
+</div>`);
     }
 }
 
