@@ -2,20 +2,17 @@
   "manifest_version": 3,
   "name": "Jira Instant Update",
   "short_name": "Jira Instant Update",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "icons": {
-      "128": "icon3-128.png",
-      "64": "icon3-64.png",
-      "48": "icon3-48.png",
-      "16": "icon3-16.png"
+    "128": "icon3-128.png",
+    "64": "icon3-64.png",
+    "48": "icon3-48.png",
+    "16": "icon3-16.png"
   },
-  "description": "Instantly see Jita ticket updates.",
+  "description": "Instantly see Jira ticket updates.",
   "host_permissions": [
-      "*://jira.mongodb.org/*"
+    "*://jira.mongodb.org/*"
   ],
-  "background": {
-    "service_worker": "eventpage.js"
-  },
   "web_accessible_resources": [
     {
       "resources": ["icon3-128.png"],
