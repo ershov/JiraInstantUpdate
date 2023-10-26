@@ -1,10 +1,13 @@
-# Jira Instant Update (browser extension)
+
+# ![icon](icon3-48.png) Jira Instant Update (browser extension)
 
 Browser extension for live updates of the currently viewed ticket while writing a comment or just watching it.
 
 It eliminates the unfortunate experience of seeing someone else had updated a ticket while you were writing a comment just AFTER posting one. This happens a lot with hot tickets.
 
 It's experimental, currently works on jira.mongodb.org domain only.
+
+![Screenshot](JiraInstantUpdate-screenshot1-640x480.png)
 
 ## Installation
 
