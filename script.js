@@ -36,6 +36,12 @@ function QQ(q,e) {
     return e;
 }
 
+function escapeHTML(s) { return s.replace(/[&<>"'`]/g, x => `&#${x.charCodeAt(0)};`); }
+
+function normalizeText(s) { return s.replace(/\s+/g, " ").trim(); }
+
+function isObject(x) { return typeof x === 'object' && x !== null; }  // this is to fix: typeof null === object
+
 let time = (...args) => new Date(...args).getTime();
 
 function fmtDate(d) {
@@ -54,7 +60,8 @@ function fmtDate(d) {
 var ex;
 function getIssueKey() {
     return (document.querySelector(`meta[name="ajs-issue-key"]`)?.content) ||
-        (location.pathname.split('/').slice(-1)[0]) ||
+        (document.querySelector('a#key-val.issue-link')?.getAttribute("data-issue-key")) ||
+        // (location.pathname.split('/').slice(-1)[0]) ||
         '';
 }
 
@@ -62,45 +69,196 @@ async function getUpdate() {
     return JSON.stringify((await (await fetch(`/rest/api/2/issue/${getIssueKey()}?fields=updated,watches`)).json())?.fields);
 }
 async function getState() {
-    return await (await fetch(`/rest/api/2/issue/${getIssueKey()}`)).json();
+    return await (await fetch(`/rest/api/2/issue/${getIssueKey()}?expand=names,renderedFields`)).json();
 }
 
-function handler(name, stGetter, updater) {
-    let lastState = null;
-    let lastStateHash = "";
-    return newState => {
-        D&&DEBUG('on new state:', name);
-        try {
-            let st = stGetter(newState);
-            let stHash = JSON.stringify(st);
-            if (lastState != null) {
-                if (stHash === lastStateHash) return false;
-                D&&DEBUG('newState update');
-                updater(st, lastState);
-            } else {
-                D&&DEBUG('newState init');
-            }
-            lastState = st;
-            lastStateHash = stHash;
-            return true;
-        } catch (ex) {
-            console.error(ex, stGetter, updater);
-            return false;
+class FieldHandler {
+    isEqual = (state1, state2) => JSON.stringify(state1) === JSON.stringify(state2);
+
+    onUpdate(fieldId, newVal, oldVal = null, renderedHTML = null) {
+        let valElement = this.getValElement(fieldId);
+        if (!valElement) return;    // TODO: add new element?
+        let wrapperElement = this.getWrapperElement(valElement, fieldId);
+        if (renderedHTML == null || !this.preferRendered()) {
+            renderedHTML = this.render(newVal, oldVal);
+            if (!this.isHtml()) renderedHTML = escapeHTML(renderedHTML);
         }
-    };
+        this.displayUpdate(valElement, wrapperElement, renderedHTML);
+    }
+
+    getValElementSel     = fieldId => `#${fieldId}-val`;
+    getWrapperElementSel = (valElement, fieldId) => `li, dl`;
+    getValElement     = fieldId => QS(this.getValElementSel(fieldId));
+    getWrapperElement = (valElement, fieldId) => valElement.closest(this.getWrapperElementSel(valElement, fieldId)) || valElement;
+
+    isHtml = () => false;
+    preferRendered = () => false;
+
+    render = (val, old) =>
+        Array.isArray(val) ? this.renderArray(val, old) :
+        isObject(val) ? this.renderObject(val, old) :
+        this.renderVal(val, old);
+    renderArray  = (val, old) =>
+        val.map(x => this.render(x)).join(', ');
+    renderObject = (val, old) =>
+        val?.displayName != null ? val.displayName :
+        val?.name != null ? val.name :
+        val?.value != null ? val.value :
+        val?.description != null ? val.description :
+        val?.id != null ? val.id :
+        Object.entries(val).map(([k,v]) => `${k}: ${this.render(v)}`).join(', ');
+    renderVal(val, old) {
+        val = `${val}`;
+        if (val.match(/\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d.\d{3}.*/)) { // Date-time
+            let d = new Date(val);
+            if (d.getTime()) return fmtDate(d);
+        }
+        if (val.match(/^[^@\s]+@[^(\s]+\(\w+\)$/)) {              // email(JIRAUSERID)
+            val.replace(/[(].*/, "");
+        }
+        return val;
+    }
+
+    displayUpdate(valElement, wrapperElement, renderedHTML) {
+        valElement.innerHTML = renderedHTML;
+        wrapperElement.style.backgroundColor = "#FFFF0080";
+    }
 }
 
-function updateText(sel1, sel2, val) {
-    D&&DEBUG(sel1, sel2, val);
-    let e;
-    (e = QQ(sel2)) && (e.innerText = val);
-    (e = QQ(sel1)) && (e.style.backgroundColor = "#FFFF0080");
-}
-function updateHTML(sel1, sel2, val) {
-    D&&DEBUG(sel1, sel2, val);
-    let e;
-    (e = QQ(sel2)) && (e.innerHTML = val);
-    (e = QQ(sel1)) && (e.style.backgroundColor = "#FFFF0080");
+var defaultHandler = new FieldHandler();
+
+var fieldHandlers = {
+    assignee: class extends FieldHandler {
+        getValElementSel = () => "#assignee-val .user-hover";
+        render = val => val?.displayName || "?";
+    },
+    attachment: class extends FieldHandler {
+        getValElementSel     = () => "#attachmentmodule #attachment_thumbnails";
+        getWrapperElementSel = () => "#attachmentmodule #attachment_thumbnails";
+        isHtml = () => true;
+        render = val => `<li>
+    <div class="attachment-thumb"><img src="${escapeHTML(val?.filename || "")}"></div>
+    <dl><dt>${escapeHTML(val?.filename || "?")}</dt></dl>
+</li>`;
+    },
+    // TODO: this is an async function: make a guard
+    comment: class extends FieldHandler { onUpdate = () => reloadActivitySection(); },
+    // "components" uses array of obj.name => default works
+    created: class extends FieldHandler { render = val => fmtDate(new Date(val)); },
+    // Sprint: array of: com.atlassian.greenhopper.service.sprint.Sprint@793bc0dc[id=7728,rapidViewId=467,state=CLOSED,name=BermudaTriangle- 2023-09-05,startDate=2023-08-21T23:31:00.000Z,endDate=2023-09-04T23:31:00.000Z,completeDate=2023-09-05T05:43:20.050Z,activatedDate=2023-08-22T02:50:13.883Z,sequence=7623,goal=,autoStartStop=false,synced=false]
+    customfield_10557: class extends FieldHandler {
+        renderVal(val) {
+            let m = val.match(/^com\.atlassian\..*[\[,]name=([^,\]]*)[\],]/);
+            return m ? m[1] : "?";
+        }
+    },
+    // Development: branches, pull requests, etc
+    // TODO: use https://jira.mongodb.org/rest/dev-status/1.0/issue/summary?issueId=2452210 ?
+    customfield_15850: class extends FieldHandler {
+        isEqual = (state1, state2) => state1.replace(/^.*devSummaryJson=/, "") === state2.replace(/^.*devSummaryJson=/, "");
+        onUpdate(fieldId, newVal, oldVal) {
+            let json = this.parse(newVal);
+            if (!isObject(json?.cachedValue?.summary)) return;
+
+            let devPanel = QS("#viewissue-devstatus-panel");
+            let devPanelList = QS("#viewissue-devstatus-panel .status-panels.devstatus-entry");
+            if (!devPanel || !devPanelList) return;
+
+            devPanel.style.display = "block";
+            devPanelList.classList.remove("empty-status");
+
+            for (let devPart of Object.keys(json.cachedValue.summary)) {
+                let devPartData = json.cachedValue.summary[devPart];
+                let devPartPanel = QS(`#viewissue-devstatus-panel .status-panels.devstatus-entry #${devPart}-status-panel`);
+                if (!devPartPanel) continue;
+                let countEl = devPartPanel ? QS(".count", devPartPanel) : null;
+                let timeEl = devPartPanel ? QS("time", devPartPanel) : null;
+                if (countEl && timeEl) {
+                    devPartPanel.classList.remove("hidden");
+                    let count = devPartData?.overall?.count || 0;
+                    let d = fmtDate(new Date(devPartData?.overall?.lastUpdated || 0));
+                    if (normalizeText(countEl.innerText) !== count) {
+                        countEl.innerText = count;
+                        timeEl.innetText = d;
+                        devPanel.style.backgroundColor = "#FFFF0080";
+                    }
+                } else if (devPartData?.overall?.count) {
+                    devPartPanel.classList.remove("hidden");
+                    let html = `${devPart}: ${devPartData.overall.count}`;
+                    if (devPartData?.overall?.state) html += ` [(${devPartData.overall.state})]`;
+                    if (devPartData?.overall?.lastUpdated) html += ` ${fmtDate(new Date(devPartData.overall.lastUpdated))}`;
+                    devPartPanel.innerHTML = html;
+                    devPartPanel.style.backgroundColor = "#FFFF0080";
+                }
+            }
+        }
+        parse(val) {
+            // Extract JSON from Jira's weird format.
+            let m = val.match(/devSummaryJson=(.*)/);
+            if (!m) return null;
+            let s = m[1];
+            while (true) {
+                try { return JSON.parse(s); } catch (ex) {}
+                let pos = s.lastIndexOf("}");
+                if (pos < 0) return null;
+                s = s.substring(0, pos);
+            }
+        }
+    },
+    description: class extends FieldHandler {
+        preferRendered = () => true;
+        getValElementSel     = () => "#descriptionmodule .user-content-block";
+        getWrapperElementSel = () => "#descriptionmodule";
+    },
+    fixVersions: class extends FieldHandler {
+        getValElementSel     = () => "#fixfor-val";
+    },
+    issuelinks: class extends FieldHandler {
+        isHtml = () => true;
+        getValElementSel     = () => "#linkingmodule .links-container";
+        getWrapperElementSel = () => "#linkingmodule";
+        renderArray  = val => val.map(x => `<div>${this.render(x)}</div>`).join('');
+        renderObject(val) {
+            let key = escapeHTML(val?.inwardIssue?.key || "");
+            let summary = escapeHTML(val?.inwardIssue?.fields?.summary || "");
+            return `${val?.type?.inward}: <a href="/browse/${key}">${key}</a>${summary}`;
+        }
+    },
+    issuetype: class extends FieldHandler {
+        isHtml = () => true;
+        getValElementSel = () => `#details-module #type-val`;
+        render = val => `<img alt="" height="16" src="${escapeHTML(val?.iconUrl)}" title="${escapeHTML(val?.name)} - ${escapeHTML(val?.description)}" width="16"> ${escapeHTML(val?.name)}<span class="overlay-icon aui-icon aui-icon-small aui-iconfont-edit"></span>`;
+    },
+    labels: class extends FieldHandler {
+        isHtml = () => true;
+        getValElementSel = () => "#details-module #wrap-labels .labels";
+        renderArray  = val => val.map(x => {
+            let l = escapeHTML(this.render(x));
+            return `<li><a class="lozenge" href="/issues/?jql=labels+%3D+${l}" title="${l}"><span>${l}</span></a></li>`;
+        }).join('');
+    },
+    votes: class extends FieldHandler {
+        getValElementSel = () => "#peoplemodule #view-voter-list aui-badge#vote-data";
+        render = val => `${val?.votes}`;
+    },
+    watches: class extends FieldHandler {
+        getValElementSel = () => "#peoplemodule #view-watcher-list aui-badge#watcher-data";
+        render = val => `${val?.watchCount}`;
+    },
+};
+
+var fieldHandlerInstances = Object.entries(fieldHandlers).reduce((a, [k, v]) => (a[k] = new v(), a), {});
+
+function processNewStatus(status, oldStatus) {
+    if (!oldStatus || status.key !== oldStatus?.key) return;
+    if (!status.fields) return;
+    for (let fieldId of Object.keys(status.fields)) {
+        let handler = fieldHandlerInstances[fieldId] || defaultHandler;
+        if (!handler.isEqual(status.fields[fieldId], oldStatus?.fields?.[fieldId])) {
+            D&&DEBUG('Field update:', fieldId, ' => ', status.fields[fieldId]);
+            handler.onUpdate(fieldId, status.fields[fieldId], oldStatus?.fields?.[fieldId], status.renderedFields?.[fieldId]);
+        }
+    }
 }
 
 // https://jira.mongodb.org/browse/${getIssueKey()}?page=com.tengen.tengen-jira-plugin:xgen-all-tabpanel&_=1694489139724
@@ -116,14 +274,14 @@ function getActiveTab() { return QS(`#issue-tabs > .menu-item.active`)?.id; }
 
 async function reloadActivitySection() {
     let tabPage = '', extra = '';
-    let isFullHistory = !!QS(`#activitymodule .show-more-comments.aui-button`);
+    let isFullHistory = !QS(`#activitymodule .show-more-comments.aui-button`);
     switch (getActiveTab()) {
         case 'xgen-all-tabpanel':
             tabPage = 'com.tengen.tengen-jira-plugin:xgen-all-tabpanel';
             break;
         case 'comment-tabpanel':
             tabPage = 'com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel';
-            extra = isFullHistory ? '' : '&showAll=true';
+            extra = isFullHistory ? '&showAll=true' : '';
             break;
         case 'xgen-changehistory-tabpanel':
             tabPage = 'com.tengen.tengen-jira-plugin:xgen-changehistory-tabpanel';
@@ -134,6 +292,8 @@ async function reloadActivitySection() {
         default:
             throw "Active tab?";
     }
+
+    // TODO: ?actionOrder=asc / actionOrder=desc
     let url = `https://jira.mongodb.org/browse/${getIssueKey()}?page=${tabPage}${extra}`;
 
     // document.querySelector('#activitymodule .mod-content').innerHTML =
@@ -145,8 +305,8 @@ async function reloadActivitySection() {
     [...e.content.querySelectorAll('* + .concise')].forEach(e => e.remove());
 
     let getTimestamp = e => new Date(e.querySelector('.livestamp')?.getAttribute("datetime")).getTime();
-    let onPageElements = [...QS(`#issue_actions_container`).children];
-    let loadedElements = [...QS(`#issue_actions_container`, e.content).children];
+    let onPageElements = [...QS(`#issue_actions_container`).children].filter(e => e.querySelector('.livestamp'));
+    let loadedElements = [...QS(`#issue_actions_container`, e.content).children].filter(e => e.querySelector('.livestamp'));
     // If it's not the full history, only consider elements that are newer than the first element on the page.
     if (onPageElements.length) loadedElements = loadedElements.filter(e => getTimestamp(e) >= getTimestamp(onPageElements[0]));
 
@@ -167,8 +327,8 @@ async function reloadActivitySection() {
             j++;
         } else {
             // update existing element (if needed)
-            let norm1 = QS('.twixi-wrap.verbose.actionContainer .action-body', e1).innerText.replace(/\s+/g, " ").trim();
-            let norm2 = QS('.twixi-wrap.verbose.actionContainer .action-body', e2).innerText.replace(/\s+/g, " ").trim();
+            let norm1 = normalizeText(QS('.twixi-wrap.verbose.actionContainer .action-body', e1).innerText);
+            let norm2 = normalizeText(QS('.twixi-wrap.verbose.actionContainer .action-body', e2).innerText);
             if (norm1 !== norm2) {
                 e1.replaceWith(e2);
                 e2.style.backgroundColor = "#FFFF0040";
@@ -189,85 +349,7 @@ async function reloadActivitySection() {
     }
 }
 
-async function updateAllComments() {
-    D&&DEBUG();
-    document.querySelector('#activitymodule .mod-content').innerHTML =
-        await (
-            await fetch(`https://jira.mongodb.org/browse/${getIssueKey()}?page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel&showAll=true`,
-                {headers: {"X-Pjax": "true", "X-Requested-With": "XMLHttpRequest"}}
-           )
-        ).text();
-    let e;
-    (e = QS('#issue_actions_container')) && (e.style.backgroundColor = "#80800020");
-}
-
-async function updateComment(id) {
-    D&&DEBUG(id);
-    if (!QS(`#activitymodule .issuePanelContainer .action-body`)) return updateAllComments();
-
-    D&&DEBUG(id, 'fetch...');
-    let c = await (await fetch(`https://jira.mongodb.org/rest/api/2/issue/${getIssueKey()}/comment/${id}?expand=renderedBody`)).json();
-
-    let e = QS(`#comment-${id} .action-body`);
-    if (e) {
-        D&&DEBUG(id, 'update');
-        e.innerHTML = c.renderedBody;
-        e.style.backgroundColor = "#FFFF0060";
-        return;
-    }
-
-    let a = QA(`#activitymodule .issuePanelContainer .activity-comment`);
-    if (!a.length) return updateAllComments();
-    id = parseInt(id);
-    let comment, comment_id;
-    for (comment of a.reverse()) {
-        comment_id = parseInt(comment.id.match(/\d+/)?.[0]);
-        if (id > comment_id) break;
-    }
-    D&&DEBUG(id, 'insert', id > comment_id ? 'afterEnd' : 'beforeBegin', comment_id);
-    comment.insertAdjacentHTML(id > comment_id ? 'afterEnd' : 'beforeBegin', `
-<div id="comment-${id}" class="issue-data-block activity-comment twixi-block  expanded" style="background-color: #B0FF0080">
-    <div class="twixi-wrap verbose actionContainer">
-        <div class="action-head-fake">
-            <!--<button aria-label="Collapse comment" title="Collapse comment" class="twixi icon-default aui-icon aui-icon-small aui-iconfont-expanded"></button>-->
-            <div class="action-details">
-                <a href="mailto:${c.author.emailAddress}">
-                    <span class="aui-avatar aui-avatar-xsmall"><span class="aui-avatar-inner"><img src="${c.author.avatarUrls["16x16"]}"></span></span>
-                    ${c.author.displayName}
-                </a>
-                ${fmtDate(new Date(c.created))}
-                ${c.visibility ? ` - Visibility: <span class="redText">${c.visibility?.value}</span>` : ''}
-            </div>
-        </div>
-        <div class="action-body flooded">
-        ${c.renderedBody}
-        </div>
-    </div>
-</div>`);
-}
-
 var state;
-function initState() {
-    DEBUG();
-    // TODO: add "Story Points" and other fields hidden by default
-    state = [
-        handler('assignee',    st => st?.fields?.assignee,            f => updateText('#assignee-val', '#assignee-val .user-hover', f?.displayName)),
-        handler('description', st => st?.fields?.description,         f => updateText('#descriptionmodule', '#descriptionmodule .user-content-block', f)),
-        //handler('duedate',     st => st?.fields?.,                    f => update('#duedate', '# .', f)),
-        handler('fixVersions', st => st?.fields?.fixVersions,         f => updateText([`#issuedetails #fixfor-val`, `li`], '#fixfor-val', f.map(x => x.name).join(', '))),
-        handler('issuelinks',  st => st?.fields?.issuelinks,          f => updateHTML('#linkingmodule', '#linkingmodule .links-container', f.map(l =>
-            `<a href="https://jira.mongodb.org/browse/${l?.inwardIssue?.key}">${l?.inwardIssue?.key}</a> ${l?.inwardIssue?.fields?.summary}`).join('<BR>'))),
-        handler('issuetype',   st => st?.fields?.issuetype,           f => updateText([`#issuedetails #type-val`, `li`], '#type-val', f.name)),
-        handler('labels',      st => st?.fields?.labels,              f => updateText(['#wrap-labels', 'li'], '#wrap-labels ul.labels', f.join(" "))),
-        handler('priority',    st => st?.fields?.priority,            f => updateText(['#priority-val', 'li'], '#priority-val', f.name)),
-        handler('status',      st => st?.fields?.status,              f => updateText(['#status-val', 'li'], '#status-val', f.name)),
-        handler('summary',     st => st?.fields?.summary,             f => updateText('#summary-val', '#summary-val', f)),
-        handler('updated',     st => st?.fields?.updated,             f => updateText(['#updated-val', 'dl'], '#updated-val', fmtDate(new Date(f)))),
-        handler('votes',       st => st?.fields?.votes?.votes,        f => updateText(['#vote-data', 'dl'], '#vote-data', f)),
-        handler('watches',     st => st?.fields?.watches?.watchCount, f => updateText(['#watcher-data', 'dl'], '#watcher-data', f)),
-        handler('comments',    st => st?.fields?.comment,             reloadActivitySection),
-    ];
-}
 
 var issueKey = "";
 var checking = false;
@@ -280,7 +362,6 @@ async function update() {
     let key = getIssueKey();
     if (issueKey != key) {
         D&DEBUG(`new issue key: ${key}`);
-        initState();
         lastUpdate = '';
         issueKey = key;
     }
@@ -295,8 +376,9 @@ async function update() {
     lastUpdate = curUpdate;
 
     D&&DEBUG('Checking getState');
-    let st = await getState();
-    state.forEach(handler => handler(st));
+    let newState = await getState();
+    processNewStatus(newState, state);
+    state = newState;
 }
 
 async function checkUpdate() {
