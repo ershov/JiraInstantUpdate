@@ -196,7 +196,7 @@ var fieldHandlers = {
                     }
                 } else if (devPartData?.overall?.count) {
                     devPartPanel.classList.remove("hidden");
-                    let html = `${devPart}: ${devPartData.overall.count}`;
+                    let html = `${escapeHTML(devPart)}: ${escapeHTML(devPartData.overall.count)}`;
                     if (devPartData?.overall?.state) html += ` [(${devPartData.overall.state})]`;
                     if (devPartData?.overall?.lastUpdated) html += ` ${fmtDate(new Date(devPartData.overall.lastUpdated))}`;
                     devPartPanel.innerHTML = html;
