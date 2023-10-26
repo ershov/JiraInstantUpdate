@@ -81,7 +81,7 @@ class FieldHandler {
     stateForCmp = state => JSON.stringify(state);
     isEqual = (state1, state2) => this.stateForCmp(state1) === this.stateForCmp(state2);
 
-    onUpdate(fieldId, newVal, oldVal = null, renderedHTML = null) {
+    onUpdate = (fieldId, newVal, oldVal = null, renderedHTML = null) => {
         let valElement = this.getValElement(fieldId);
         if (!valElement) return;    // TODO: add new element?
         let wrapperElement = this.getWrapperElement(valElement, fieldId);
@@ -90,7 +90,7 @@ class FieldHandler {
             if (!this.isHtml()) renderedHTML = escapeHTML(renderedHTML);
         }
         this.displayUpdate(valElement, wrapperElement, renderedHTML);
-    }
+    };
 
     getValElementSel     = fieldId => `#${fieldId}-val`;
     getWrapperElementSel = (valElement, fieldId) => `li, dl`;
@@ -113,7 +113,7 @@ class FieldHandler {
         val?.description != null ? val.description :
         val?.id != null ? val.id :
         Object.entries(val).map(([k,v]) => `${k}: ${this.render(v)}`).join(', ');
-    renderVal(val, old) {
+    renderVal = (val, old) => {
         val = `${val}`;
         if (val.match(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d.\d{3}.*/)) { // Date-time
             let d = new Date(val);
@@ -123,12 +123,12 @@ class FieldHandler {
             val.replace(/[(].*/, "");
         }
         return val;
-    }
+    };
 
-    displayUpdate(valElement, wrapperElement, renderedHTML) {
+    displayUpdate = (valElement, wrapperElement, renderedHTML) => {
         valElement.innerHTML = renderedHTML;
         wrapperElement.style.backgroundColor = "#FFFF0080";
-    }
+    };
 }
 
 var defaultHandler = new FieldHandler();
@@ -157,17 +157,17 @@ var fieldHandlers = {
     },
     // Sprint: array of: com.atlassian.greenhopper.service.sprint.Sprint@793bc0dc[id=7728,rapidViewId=467,state=CLOSED,name=BermudaTriangle- 2023-09-05,startDate=2023-08-21T23:31:00.000Z,endDate=2023-09-04T23:31:00.000Z,completeDate=2023-09-05T05:43:20.050Z,activatedDate=2023-08-22T02:50:13.883Z,sequence=7623,goal=,autoStartStop=false,synced=false]
     customfield_10557: class extends FieldHandler {
-        renderVal(val) {
+        renderVal = (val) => {
             let m = val.match(/^com\.atlassian\..*[\[,]name=([^,\]]*)[\],]/);
             return m ? m[1] : "?";
-        }
+        };
     },
     // Development: branches, pull requests, etc
     // TODO: use https://jira.mongodb.org/rest/dev-status/1.0/issue/summary?issueId=2452210 ?
     customfield_15850: class extends FieldHandler {
         // stateForCmp = state => (state || "").replace(/^.*devSummaryJson=/, "");  // this doesn't work because ".stale" can change for no reason
         stateForCmp = state => JSON.stringify(this.parse(state || ""));
-        onUpdate(fieldId, newVal, oldVal) {
+        onUpdate = (fieldId, newVal, oldVal) => {
             let json = newVal ? this.parse(newVal) : null;
             if (!isObject(json?.summary)) return;
 
@@ -202,8 +202,8 @@ var fieldHandlers = {
                     devPartPanel.style.backgroundColor = "#FFFF0080";
                 }
             }
-        }
-        parse(val) {
+        };
+        parse = (val) => {
             // Extract JSON from Jira's weird format.
             let m = val.match(/devSummaryJson=(.*)/);
             if (!m) return null;
@@ -214,7 +214,7 @@ var fieldHandlers = {
                 if (pos < 0) return null;
                 s = s.substring(0, pos);
             }
-        }
+        };
     },
     description: class extends FieldHandler {
         preferRendered = () => true;
@@ -229,11 +229,12 @@ var fieldHandlers = {
         getValElementSel     = () => "#linkingmodule .links-container";
         getWrapperElementSel = () => "#linkingmodule";
         renderArray  = val => val.map(x => `<div>${this.render(x)}</div>`).join('');
-        renderObject(val) {
-            let key = escapeHTML(val?.inwardIssue?.key || "");
-            let summary = escapeHTML(val?.inwardIssue?.fields?.summary || "");
+        renderObject = (val) => {
+            let other = val?.outwardIssue || val?.inwardIssue;
+            let key = escapeHTML(other?.key || "");
+            let summary = escapeHTML(other?.fields?.summary || "");
             return `${val?.type?.inward}: <a href="/browse/${key}">${key}</a>${summary}`;
-        }
+        };
     },
     issuetype: class extends FieldHandler {
         isHtml = () => true;
