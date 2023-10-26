@@ -44,6 +44,18 @@ function isObject(x) { return typeof x === 'object' && x !== null; }  // this is
 
 let time = (...args) => new Date(...args).getTime();
 
+var originalIcon = QS('head link[rel="shortcut icon"]')?.getAttribute('href');
+var iconState = false;
+function updateIcon(changedState) {
+    if (iconState === changedState) return;
+    iconState = changedState;
+    let icon = changedState ? chrome.runtime.getURL(`icon3-128.png`) : originalIcon;
+    let iconElement = QS('head link[rel="shortcut icon"]');
+    if (iconElement && iconElement.getAttribute('href') !== icon) {
+        iconElement.setAttribute('href', icon);
+    }
+}
+
 function fmtDate(d) {
     return Intl.DateTimeFormat(undefined, {
         weekday: 'short',
@@ -160,10 +172,11 @@ var fieldHandlers = {
     // Development: branches, pull requests, etc
     // TODO: use https://jira.mongodb.org/rest/dev-status/1.0/issue/summary?issueId=2452210 ?
     customfield_15850: class extends FieldHandler {
-        stateForCmp = state => (state || "").replace(/^.*devSummaryJson=/, "");
+        // stateForCmp = state => (state || "").replace(/^.*devSummaryJson=/, "");  // this doesn't work because ".stale" can change for no reason
+        stateForCmp = state => JSON.stringify(this.parse(state || ""));
         onUpdate(fieldId, newVal, oldVal) {
             let json = this.parse(newVal);
-            if (!isObject(json?.cachedValue?.summary)) return;
+            if (!isObject(json?.summary)) return;
 
             let devPanel = QS("#viewissue-devstatus-panel");
             let devPanelList = QS("#viewissue-devstatus-panel .status-panels.devstatus-entry");
@@ -172,8 +185,8 @@ var fieldHandlers = {
             devPanel.style.display = "block";
             devPanelList.classList.remove("empty-status");
 
-            for (let devPart of Object.keys(json.cachedValue.summary)) {
-                let devPartData = json.cachedValue.summary[devPart];
+            for (let devPart of Object.keys(json.summary)) {
+                let devPartData = json.summary[devPart];
                 let devPartPanel = QS(`#viewissue-devstatus-panel .status-panels.devstatus-entry #${devPart}-status-panel`);
                 if (!devPartPanel) continue;
                 let countEl = devPartPanel ? QS(".count", devPartPanel) : null;
@@ -203,7 +216,7 @@ var fieldHandlers = {
             if (!m) return null;
             let s = m[1];
             while (true) {
-                try { return JSON.parse(s); } catch (ex) {}
+                try { return JSON.parse(s)?.cachedValue; } catch (ex) {}
                 let pos = s.lastIndexOf("}");
                 if (pos < 0) return null;
                 s = s.substring(0, pos);
@@ -260,6 +273,7 @@ function processNewStatus(status, oldStatus) {
     for (let fieldId of Object.keys(status.fields)) {
         let handler = fieldHandlerInstances[fieldId] || defaultHandler;
         if (!handler.isEqual(status.fields[fieldId], oldStatus?.fields?.[fieldId])) {
+            updateIcon(true);
             D&&DEBUG('Field update:', status.names?.[fieldId], fieldId, oldStatus?.fields?.[fieldId], ' => ', status.fields[fieldId]);
             handler.onUpdate(fieldId, status.fields[fieldId], oldStatus?.fields?.[fieldId], status.renderedFields?.[fieldId]);
         }
@@ -446,7 +460,7 @@ async function checkUpdate() {
     }
 }
 
-function onUserActive() {
+function scheduleNextCheckIfNeeded() {
     //D&&DEBUG(`checking = ${checking}   nextCheckTimer = ${nextCheckTimer}`);
     if (checking) return;
     let key = getIssueKey();
@@ -476,6 +490,11 @@ function onUserActive() {
     }
 }
 
+function onUserActive() {
+    updateIcon(false);
+    scheduleNextCheckIfNeeded();
+}
+
 function activate() {
     //if (!QS('.issue-navigator')) {
     //    D&DEBUG('Not a ticket page');
@@ -487,6 +506,10 @@ function activate() {
       'keyup',
     ].forEach(ev => window.addEventListener(ev, onUserActive, {passive: true}));
     onUserActive();
+
+    // Check every 10 minutes to update the page icon if the user is not active.
+    // Don't check if the icon already indicates an update.
+    setInterval(() => iconState || scheduleNextCheckIfNeeded(), 10*60*1000);
 }
 activate();
 
