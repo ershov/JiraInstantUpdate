@@ -61,7 +61,17 @@ document.querySelector('#show-more-links-link')?.click();
 //var D=false;
 //var DEBUG = ()=>{};
 var D=true;
-function DEBUG(...args) { console.log(`[instant] ${DEBUG.caller.name}:`, ...args); }
+function DEBUG(...args) {
+    console.log(`[instant] ${DEBUG.caller.name}:`, ...args);
+    // let ss = 0, fn = DEBUG.caller;
+    // while (true) {
+    //     try {
+    //         if (!(fn = fn?.caller)) break;
+    //     } catch (ex) { break; }
+    //     ss++;
+    // }
+    // console.log(`${"  ".repeat(ss)}${DEBUG.caller.name}:`, ...args);
+}
 
 var QS = (q,e) => (e || document).querySelector(q);
 var QA = (q,e) => [...(e || document).querySelectorAll(q)];
@@ -69,11 +79,14 @@ var QA = (q,e) => [...(e || document).querySelectorAll(q)];
 function QQ(q,e) {
     e ||= document;
     if (!Array.isArray(q)) return e.querySelector(q);
-    for (let i = 0; e && i < q.length; i++) { e = (i % 2) ? e.closest(q[i]) : e.querySelector(q[i]); }
-    return e;
+    let q1;
+    for (let it = q[Symbol.iterator](); !it.done; ) {
+        if (!(q1 = it.next().value)) return e;
+        if (!(e = e.querySelector(q1))) return null;
+        if (!(q1 = it.next().value)) return e;
+        if (!(e = e.closest(q1))) return null;
+    }
 }
-
-let time = (...args) => new Date(...args).getTime();
 
 function fmtDate(d) {
     return Intl.DateTimeFormat(undefined, {
@@ -256,6 +269,7 @@ function initState() {
   ];
 }
 
+let time = () => new Date().getTime();
 var issueKey = "";
 var checking = false;
 var lastUpdate = '';
@@ -360,12 +374,12 @@ function onUserActive() {
     let dt = t - lastCheckT;
     //D&&DEBUG(`dt = ${dt}`);
     if (dt >= 15000) {
-        D&&DEBUG(`dt = ${dt} : Update now`);
+        D&&DEBUG(`dt = ${dt} - Update now`);
         checkUpdate();
     } else if (dt < 4000) {
-        //D&&DEBUG(`dt = ${dt} : Ignoring too frequent checks`);
+        //D&&DEBUG(`dt = ${dt} - Ignoring too frequent checks`);
     } else {
-        D&&DEBUG(`dt = ${dt} : Hold update`);
+        D&&DEBUG(`dt = ${dt} - Hold update`);
         dt = 15000 - dt;
         D&&DEBUG(`Checking in ${dt}`);
         nextCheckTimer = setTimeout(async() => {
