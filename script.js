@@ -38,11 +38,11 @@ function isObject(x) { return typeof x === 'object' && x !== null; }  // this is
 let time = (...args) => new Date(...args).getTime();
 
 var originalIcon = QS('head link[rel="shortcut icon"]')?.getAttribute('href');
+var modifiedIcon = chrome?.runtime?.getURL(`icon3-128.png`);
 var iconState = false;
 function updateIcon(changedState) {
-    if (iconState === changedState) return;
-    let icon = changedState ? chrome?.runtime?.getURL(`icon3-128.png`) : originalIcon;
-    if (!icon) return;
+    if (!modifiedIcon || iconState === changedState) return;
+    let icon = changedState ? modifiedIcon : originalIcon;
     let iconElement = QS('head link[rel="shortcut icon"]');
     if (iconElement && iconElement.getAttribute('href') !== icon) {
         iconElement.setAttribute('href', icon);
