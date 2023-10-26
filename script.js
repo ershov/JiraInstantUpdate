@@ -28,13 +28,6 @@ function DEBUG(...args) { console.log(`[instant] ${DEBUG.caller.name}:`, ...args
 
 var QS = (q,e) => (e || document).querySelector(q);
 var QA = (q,e) => [...(e || document).querySelectorAll(q)];
-// Can do down and up
-function QQ(q,e) {
-    e ||= document;
-    if (!Array.isArray(q)) return e.querySelector(q);
-    for (let i = 0; e && i < q.length; i++) { e = (i % 2) ? e.closest(q[i]) : e.querySelector(q[i]); }
-    return e;
-}
 
 function escapeHTML(s) { return s.replace(/[&<>"'`]/g, x => `&#${x.charCodeAt(0)};`); }
 
