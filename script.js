@@ -231,8 +231,8 @@ function initState() {
             // let lfs = lf.reduce((a, b) => Object.assign(a, {[b.id]: b}), {});
             f = f.comments; lf = lf.comments;
             let runaway = 0, e;
-                // TODO: respect sort order: '.sortwrap .issue-activity-sort-link'
-                for (let fi = 0, lfi = 0; fi < f.length || lfi < lf.length; ) {
+            // TODO: respect sort order: '.sortwrap .issue-activity-sort-link'
+            for (let fi = 0, lfi = 0; fi < f.length || lfi < lf.length; ) {
                 D&&DEBUG('comments', `[${fi} : ${lfi}]`);
                 if (++runaway > 1000) break;
                 let d = (fi < f.length ? parseInt(f[fi].id) : 10000000000) - (lfi < lf.length ? parseInt(lf[lfi].id) : 10000000000);
@@ -327,6 +327,7 @@ async function checkUpdate() {
   position: fixed;
   background-color: #FFC;
   color: #AAA;
+  border-radius: 0.5em;
   padding: 0 0.5em;
   font-family: Arial;
   font-size: 8pt;
