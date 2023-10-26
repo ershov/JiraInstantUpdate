@@ -1,3 +1,55 @@
+
+/* Shift-click on code scrollbar expands the code */
+document.addEventListener("mousedown", ev =>
+  ev.shiftKey &&
+  ev.target?.id === "syntaxplugin" && (
+    (ev.target.style.maxHeight = ev.target.style.maxHeight ? "" : "30em"),
+     event.preventDefault()
+  )
+);
+
+document.addEventListener("mousedown", ev =>
+  ev.shiftKey &&
+  ev.altKey &&
+  ev.target?.id != "syntaxplugin" &&
+  (e = ev.target.closest(".syntaxplugin#syntaxplugin")) && (
+    (e.style.maxHeight = e.style.maxHeight ? "" : "30em"),
+    event.preventDefault(),
+    ev.cancelBubble = true
+  ),
+true);
+
+/* Alt-click on code scrollbar enables code wrap */
+document.addEventListener("mousedown", ev => { if (ev.altKey && !ev.shiftKey && ev.target.closest(".syntaxplugin#syntaxplugin")) {
+	ev.preventDefault();
+	ev.cancelBubble = true;
+	let e = document.querySelector("#codewrapstyle");
+	if (e) {
+		e.remove();
+	} else {
+		document.head.insertAdjacentHTML("beforeEnd", `
+<style id="codewrapstyle">
+.syntaxplugin tr#syntaxplugin_code_and_gutter pre {
+	text-wrap: wrap;
+	word-break: break-all;
+}
+</style>
+`);
+	}
+}}, {capture: true});
+
+// Auto-expand links
+document.querySelector('#show-more-links-link')?.click();
+
+/////////////////////////////////////////////////////
+/////////////////////////////////////////////////////
+/////////////////////////////////////////////////////
+/////////////////////////////////////////////////////
+/////////////////////////////////////////////////////
+/////////////////////////////////////////////////////
+/////////////////////////////////////////////////////
+/////////////////////////////////////////////////////
+
 // https://developer.atlassian.com/cloud/jira/platform/rest/v2/api-group-issue-comments
 // https://docs.atlassian.com/software/jira/docs/api/REST/7.12.0/
 // https://jira.mongodb.org/rest/api/2/myself
@@ -10,16 +62,6 @@
 //var DEBUG = ()=>{};
 var D=true;
 function DEBUG(...args) { console.log(`[instant] ${DEBUG.caller.name}:`, ...args); }
-//function DEBUG(...args) {
-//    let ss = 0, fn = DEBUG.caller;
-//    while (true) {
-//        try {
-//            if (!(fn = fn?.caller)) break;
-//        } catch (ex) { break; }
-//        ss++;
-//    }
-//    console.log(`${"  ".repeat(ss)}${DEBUG.caller.name}:`, ...args);
-//}
 
 var QS = (q,e) => (e || document).querySelector(q);
 var QA = (q,e) => [...(e || document).querySelectorAll(q)];
@@ -98,87 +140,6 @@ function updateHTML(sel1, sel2, val) {
     (e = QQ(sel1)) && (e.style.backgroundColor = "#FFFF0080");
 }
 
-// https://jira.mongodb.org/browse/${getIssueKey()}?page=com.tengen.tengen-jira-plugin:xgen-all-tabpanel&_=1694489139724
-// https://jira.mongodb.org/browse/${getIssueKey()}?page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel&showAll=true
-// https://jira.mongodb.org/browse/${getIssueKey()}?page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel&_=1694489139735
-// https://jira.mongodb.org/browse/${getIssueKey()}?page=com.tengen.tengen-jira-plugin:xgen-changehistory-tabpanel&_=1694489139731
-// https://jira.mongodb.org/browse/${getIssueKey()}?page=com.atlassian.streams.streams-jira-plugin:activity-stream-issue-tab&_=1694489139733
-
-function getActiveTab() { return QS(`#issue-tabs > .menu-item.active`)?.id; }
-
-async function reloadActivitySection() {
-    let tabPage = '', extra = '';
-    let isFullHistory = !!QS(`#activitymodule .show-more-comments.aui-button`);
-    switch (getActiveTab()) {
-        case 'xgen-all-tabpanel':
-            tabPage = 'com.tengen.tengen-jira-plugin:xgen-all-tabpanel';
-            break;
-        case 'comment-tabpanel':
-            tabPage = 'com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel';
-            extra = isFullHistory ? '' : '&showAll=true';
-            break;
-        case 'xgen-changehistory-tabpanel':
-            tabPage = 'com.tengen.tengen-jira-plugin:xgen-changehistory-tabpanel';
-            break;
-        case 'activity-stream-issue-tab':
-            tabPage = 'com.atlassian.streams.streams-jira-plugin:activity-stream-issue-tab';
-            break;
-        default:
-            throw "Active tab?";
-    }
-    let url = `https://jira.mongodb.org/browse/${getIssueKey()}?page=${tabPage}${extra}`;
-
-    // document.querySelector('#activitymodule .mod-content').innerHTML =
-    //     await (await fetch(url, {headers: {"X-Pjax": "true", "X-Requested-With": "XMLHttpRequest"}})).text();
-
-    let text = await (await fetch(url, {headers: {"X-Pjax": "true", "X-Requested-With": "XMLHttpRequest"}})).text();
-    let e = document.createElement('template');
-    e.innerHTML = text;
-    [...e.content.querySelectorAll('* + .concise')].forEach(e => e.remove());
-
-    let getTimestamp = e => new Date(e.querySelector('.livestamp')?.getAttribute("datetime")).getTime();
-    let onPageElements = QS(`#issue_actions_container`).children;
-    let loadedElements = QS(`#issue_actions_container`, e.content).children;
-    // If it's not the full history, only consider elements that are newer than the first element on the page.
-    if (onPageElements.length) loadedElements = loadedElements.filter(e => getTimestamp(e) >= getTimestamp(onPageElements[0]));
-
-    // TODO: respect sort order: '.sortwrap .issue-activity-sort-link'
-    let i = 0, j = 0, e1, e2;
-    while (i < onPageElements.length && j < loadedElements.length) {
-        e1 = onPageElements[i];
-        e2 = loadedElements[j];
-        let t1 = getTimestamp(e1), t2 = getTimestamp(e2);
-        if (t1 < t2) {
-            // deleted element
-            e1.style.backgroundColor = "#FF000040"; // e1.remove();
-            i++;
-        } else if (t1 > t2) {
-            // new element
-            e1.insertAdjacentElement('beforeBegin', e2);
-            e2.style.backgroundColor = "#FFFF0040";
-            j++;
-        } else {
-            // update existing element (if needed)
-            if (e1.innerHTML != e2.innerHTML) {
-                e1.replaceWith(e2);
-                e2.style.backgroundColor = "#FFFF0040";
-            }
-            i++; j++;
-        }
-    }
-    while (j < onPageElements.length) {
-        // new element
-        e2 = loadedElements[j++];
-        QS(`#issue_actions_container`).insertAdjacentElement('beforeEnd', e2);
-        e2.style.backgroundColor = "#B0FF0060";
-    }
-    while (i < loadedElements.length) {
-        // deleted element
-        e1 = onPageElements[i++];
-        e1.style.backgroundColor = "#FF000040"; // e1.remove();
-    }
-}
-
 async function updateAllComments() {
     D&&DEBUG();
     document.querySelector('#activitymodule .mod-content').innerHTML =
@@ -238,63 +199,61 @@ async function updateComment(id) {
 
 var state;
 function initState() {
-    DEBUG();
-    // TODO: add "Story Points" and other fields hidden by default
-    state = [
-        genState('assignee',    st => st?.fields?.assignee,            f => updateText('#assignee-val', '#assignee-val .user-hover', f?.displayName)),
-        genState('description', st => st?.fields?.description,         f => updateText('#descriptionmodule', '#descriptionmodule .user-content-block', f)),
-        //genState('duedate',     st => st?.fields?.,                    f => update('#duedate', '# .', f)),
-        genState('fixVersions', st => st?.fields?.fixVersions,         f => updateText([`#issuedetails #fixfor-val`, `li`], '#fixfor-val', f.map(x => x.name).join(', '))),
-        genState('issuelinks',  st => st?.fields?.issuelinks,          f => updateHTML('#linkingmodule', '#linkingmodule .links-container', f.map(l =>
-            `<a href="https://jira.mongodb.org/browse/${l?.inwardIssue?.key}">${l?.inwardIssue?.key}</a> ${l?.inwardIssue?.fields?.summary}`).join('<BR>'))),
-        genState('issuetype',   st => st?.fields?.issuetype,           f => updateText([`#issuedetails #type-val`, `li`], '#type-val', f.name)),
-        genState('labels',      st => st?.fields?.labels,              f => updateText(['#wrap-labels', 'li'], '#wrap-labels ul.labels', f.join(" "))),
-        genState('priority',    st => st?.fields?.priority,            f => updateText(['#priority-val', 'li'], '#priority-val', f.name)),
-        genState('status',      st => st?.fields?.status,              f => updateText(['#status-val', 'li'], '#status-val', f.name)),
-        genState('summary',     st => st?.fields?.summary,             f => updateText('#summary-val', '#summary-val', f)),
-        genState('updated',     st => st?.fields?.updated,             f => updateText(['#updated-val', 'dl'], '#updated-val', fmtDate(new Date(f)))),
-        genState('votes',       st => st?.fields?.votes?.votes,        f => updateText(['#vote-data', 'dl'], '#vote-data', f)),
-        genState('watches',     st => st?.fields?.watches?.watchCount, f => updateText(['#watcher-data', 'dl'], '#watcher-data', f)),
-        genState('comments',    st => st?.fields?.comment, (f, lf) => {
-            // let fs = f.reduce((a, b) => Object.assign(a, {[b.id]: b}), {});
-            // let lfs = lf.reduce((a, b) => Object.assign(a, {[b.id]: b}), {});
-            f = f.comments; lf = lf.comments;
-            let runaway = 0, e;
-            // TODO: respect sort order: '.sortwrap .issue-activity-sort-link'
-            for (let fi = 0, lfi = 0; fi < f.length || lfi < lf.length; ) {
-                D&&DEBUG('comments', `[${fi} : ${lfi}]`);
-                if (++runaway > 1000) break;
-                let d = (fi < f.length ? parseInt(f[fi].id) : 10000000000) - (lfi < lf.length ? parseInt(lf[lfi].id) : 10000000000);
-                D&&DEBUG('comments', `{${fi < f.length ? parseInt(f[fi].id) : 10000000000} : ${lfi < lf.length ? parseInt(lf[lfi].id) : 10000000000}}`);
-                //QS('#activitymodule .mod-content');
-                //await (await fetch('https://jira.mongodb.org/browse/WT-11460?page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel&showAll=true', {headers: {"X-Pjax": "true", "X-Requested-With": "XMLHttpRequest"}})).text()
-                // https://jira.mongodb.org/rest/api/2/issue/WT-11460/comment/5688331?expand=renderedBody
-                if (d < 0) {
-                    // new state has a comment where the old one didn't: inserted comment (???)
-                    let id = f[fi].id;
-                    D&&DEBUG('comments', 'insert', id);
-                    (e = QS(`#comment-${id}`)) && (e.style.backgroundColor = "#B0FF0060");
-                    updateComment(id);
-                    fi++;
-                } else if (d > 0) {
-                    // new state doesn't have a comment: deleted comment
-                    let id = lf[lfi].id;
-                    D&&DEBUG('comments', 'delete', id);
-                    (e = QS(`#comment-${id}`)) && (e.style.backgroundColor = "#FF000040");
-                    lfi++;
-                } else {
-                    // match
-                    if (JSON.stringify(f[fi]) != JSON.stringify(lf[lfi])) {
-                        let id = lf[lfi].id;
-                        D&&DEBUG('comments', 'edit', id);
-                        (e = QS(`#comment-${id}`)) && (e.style.backgroundColor = "#FFFF0040");
-                        updateComment(id);
-                    }
-                    fi++; lfi++;
-                }
-            }
-        }),
-    ];
+  DEBUG();
+  state = [
+      genState('assignee',    st => st?.fields?.assignee,            f => updateText('#assignee-val', '#assignee-val .user-hover', f?.displayName)),
+      genState('description', st => st?.fields?.description,         f => updateText('#descriptionmodule', '#descriptionmodule .user-content-block', f)),
+      //genState('duedate',     st => st?.fields?.,                    f => update('#duedate', '# .', f)),
+      genState('fixVersions', st => st?.fields?.fixVersions,         f => updateText([`#issuedetails #fixfor-val]`, `li`], '#fixfor-val', f.join(', '))),
+      genState('issuelinks',  st => st?.fields?.issuelinks,          f => updateHTML('#linkingmodule', '#linkingmodule .links-container', f.map(l =>
+          `<a href="https://jira.mongodb.org/browse/${l?.inwardIssue?.key}">${l?.inwardIssue?.key}</a> ${l?.inwardIssue?.fields?.summary}`).join('<BR>'))),
+      genState('issuetype',   st => st?.fields?.issuetype,           f => updateText([`#issuedetails #type-val`, `li`], '#type-val', f.name)),
+      genState('labels',      st => st?.fields?.labels,              f => updateText(['#wrap-labels', 'li'], '#wrap-labels ul.labels', f.join(" "))),
+      genState('priority',    st => st?.fields?.priority,            f => updateText(['#priority-val', 'li'], '#priority-val', f.name)),
+      genState('status',      st => st?.fields?.status,              f => updateText(['#status-val', 'li'], '#status-val', f.name)),
+      genState('summary',     st => st?.fields?.summary,             f => updateText('#summary-val', '#summary-val', f)),
+      genState('updated',     st => st?.fields?.updated,             f => updateText(['#updated-val', 'dl'], '#updated-val', fmtDate(new Date(f)))),
+      genState('votes',       st => st?.fields?.votes?.votes,        f => updateText(['#vote-data', 'dl'], '#vote-data', f)),
+      genState('watches',     st => st?.fields?.watches?.watchCount, f => updateText(['#watcher-data', 'dl'], '#watcher-data', f)),
+      genState('comments',    st => st?.fields?.comment, (f, lf) => {
+          // let fs = f.reduce((a, b) => Object.assign(a, {[b.id]: b}), {});
+          // let lfs = lf.reduce((a, b) => Object.assign(a, {[b.id]: b}), {});
+          f = f.comments; lf = lf.comments;
+          let runaway = 0, e;
+          for (let fi = 0, lfi = 0; fi < f.length || lfi < lf.length; ) {
+              D&&DEBUG('comments', `[${fi} : ${lfi}]`);
+              if (++runaway > 1000) break;
+              let d = (fi < f.length ? parseInt(f[fi].id) : 10000000000) - (lfi < lf.length ? parseInt(lf[lfi].id) : 10000000000);
+              D&&DEBUG('comments', `{${fi < f.length ? parseInt(f[fi].id) : 10000000000} : ${lfi < lf.length ? parseInt(lf[lfi].id) : 10000000000}}`);
+              //QS('#activitymodule .mod-content');
+              //await (await fetch('https://jira.mongodb.org/browse/WT-11460?page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel&showAll=true', {headers: {"X-Pjax": "true", "X-Requested-With": "XMLHttpRequest"}})).text()
+              // https://jira.mongodb.org/rest/api/2/issue/WT-11460/comment/5688331?expand=renderedBody
+              if (d < 0) {
+                  // new state has a comment where the old one didn't: inserted comment (???)
+                  let id = f[fi].id;
+                  D&&DEBUG('comments', 'insert', id);
+                  (e = QS(`#comment-${id}`)) && (e.style.backgroundColor = "#B0FF0060");
+                  updateComment(id);
+                  fi++;
+              } else if (d > 0) {
+                  // new state doesn't have a comment: deleted comment
+                  let id = lf[lfi].id;
+                  D&&DEBUG('comments', 'delete', id);
+                  (e = QS(`#comment-${id}`)) && (e.style.backgroundColor = "#FF000040");
+                  lfi++;
+              } else {
+                  // match
+                  if (JSON.stringify(f[fi]) != JSON.stringify(lf[lfi])) {
+                      let id = lf[lfi].id;
+                      D&&DEBUG('comments', 'edit', id);
+                      (e = QS(`#comment-${id}`)) && (e.style.backgroundColor = "#FFFF0040");
+                      updateComment(id);
+                  }
+                  fi++; lfi++;
+              }
+          }
+      }),
+  ];
 }
 
 var issueKey = "";
@@ -429,163 +388,4 @@ function activate() {
     onUserActive();
 }
 activate();
-
-// monitor URL change:
-// window.addEventListener('popstate', listener);  // or hashchange
-// const pushUrl = (href) => {
-//   history.pushState({}, '', href);
-//   window.dispatchEvent(new Event('popstate'));
-// };
-
-// monitor in-page content changes...
-// if (document.querySelector('.bv2-content')) {
-//   let observer = new MutationObserver((mutations) => {
-//     LOG("Page changed");
-//     prevIssueNo = curIssueNo = 0;
-//     lastState = null;
-//     if (nextCheckTimer) { clearTimeout(nextCheckTimer); nextCheckTimer = 0; }
-//     if (!isChecking) {
-//       LOG(`:Checking NOW`);
-//       CheckNewEvents();
-//     } else {
-//       LOG(`:Checking in 2s`);
-//       nextCheckTimer = setTimeout(() => {
-//         CheckNewEvents();
-//         nextCheckTimer = 0;
-//       }, 2000);
-//     }
-//   });
-//   observer.observe(document.querySelector('.bv2-content'), {childList: true});
-// }
-
-
-/*
-
-status bar:
-
-<div id="instant-update-status">
-<style>
-#instant-update-status {
-  right: 0;
-  bottom: 0;
-  position: fixed;
-  background-color: #FFB8;
-  color: #888F;
-  padding: 0.1em 0.5em;
-  font-size: 8pt;
-  font-weight: 600;
-  z-index: 999;
-  pointer-events: none;
-}
-
-@keyframes spinner-rotate {
-  0%       { transform: rotate(0deg); }
-  100%     { transform: rotate(360deg); }
-}
-
-</style>
-        <svg id="instant-banner-update-icon" height="9" viewBox="0 0 24 24" width="9" fill="#888" fit="" preserveAspectRatio="xMidYMid meet" focusable="false" style="display: none;animation: spinner-rotate 700ms linear infinite;">
-        <path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z">
-        </path>
-        </svg>
-        Auto updated on:
-        <span id="instant-banner-timestamp" style="color:#555"></span>
-</div>
-
-*/
-
-
-
-
-
-
-
-// /* Shift-click on code scrollbar expands the code */
-// document.addEventListener("mousedown", ev =>
-//   ev.shiftKey &&
-//   ev.target?.id === "syntaxplugin" && (
-//     (ev.target.style.maxHeight = ev.target.style.maxHeight ? "" : "30em"),
-//      event.preventDefault()
-//   )
-// );
-
-// document.addEventListener("mousedown", ev =>
-//   ev.shiftKey &&
-//   ev.altKey &&
-//   ev.target?.id != "syntaxplugin" &&
-//   (e = ev.target.closest(".syntaxplugin#syntaxplugin")) && (
-//     (e.style.maxHeight = e.style.maxHeight ? "" : "30em"),
-//     event.preventDefault(),
-//     ev.cancelBubble = true
-//   ),
-// true);
-
-// // Auto-expand links
-// document.querySelector('#show-more-links-link')?.click();
-
-// /* Alt-click on code scrollbar enables code wrap */
-// document.addEventListener("mousedown", ev => { if (ev.altKey && !ev.shiftKey && ev.target.closest(".syntaxplugin#syntaxplugin")) {
-//  ev.preventDefault();
-//  ev.cancelBubble = true;
-//  let e = document.querySelector("#codewrapstyle");
-//  if (e) {
-//    e.remove();
-//  } else {
-//    document.head.insertAdjacentHTML("beforeEnd", `
-// <style id="codewrapstyle">
-// .syntaxplugin tr#syntaxplugin_code_and_gutter pre {
-//  text-wrap: wrap;
-//  word-break: break-all;
-// }
-// </style>
-// `);
-//  }
-// }}, {capture: true});
-
-
-
-
-
-// document.head.insertAdjacentHTML("beforeEnd", `
-// <style>
-// /* Highlight backlog assignee */
-// a[rel^="backlog-"] {
-// 	background-color: #ff800040;
-// }
-//
-// /* Code quote wrap */
-// /*
-// .syntaxplugin tr#syntaxplugin_code_and_gutter pre {
-// 	text-wrap: wrap;
-// 	word-break: break-all;
-// }
-// */
-// /* Code quote font size */
-// .syntaxplugin tr#syntaxplugin_code_and_gutter pre {
-// 	font-size: 0.8em !important;
-// 	margin: 0 !important;
-// }
-//
-// /* Code highlight line on mouse hover */
-// .syntaxplugin tr#syntaxplugin_code_and_gutter:hover {
-// 	background-color: #E8E8E8;
-// }
-//
-// /* Line between the code lines */
-// .syntaxplugin tr#syntaxplugin_code_and_gutter {
-//   outline: 1px dashed #dcdce0;
-// }
-//
-// /* Proper wrapping for comments */
-// .twixi-block .verbose .flooded, .toggle-wrap .verbose .flooded {
-//     word-break: break-word;
-// }
-//
-// /* Edit crayon is always visible */
-// .overlay-icon {
-//   opacity: 0.5 !important;
-// 	z-index: auto !important;
-// }
-// </style>
-// `);
 
