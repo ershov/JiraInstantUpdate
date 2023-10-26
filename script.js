@@ -41,12 +41,13 @@ var originalIcon = QS('head link[rel="shortcut icon"]')?.getAttribute('href');
 var iconState = false;
 function updateIcon(changedState) {
     if (iconState === changedState) return;
-    iconState = changedState;
-    let icon = changedState ? chrome.runtime.getURL(`icon3-128.png`) : originalIcon;
+    let icon = changedState ? chrome?.runtime?.getURL(`icon3-128.png`) : originalIcon;
+    if (!icon) return;
     let iconElement = QS('head link[rel="shortcut icon"]');
     if (iconElement && iconElement.getAttribute('href') !== icon) {
         iconElement.setAttribute('href', icon);
     }
+    iconState = changedState;
 }
 
 function fmtDate(d) {
