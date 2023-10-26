@@ -73,7 +73,8 @@ async function getState() {
 }
 
 class FieldHandler {
-    isEqual = (state1, state2) => JSON.stringify(state1) === JSON.stringify(state2);
+    stateForCmp = state => JSON.stringify(state);
+    isEqual = (state1, state2) => this.stateForCmp(state1) === this.stateForCmp(state2);
 
     onUpdate(fieldId, newVal, oldVal = null, renderedHTML = null) {
         let valElement = this.getValElement(fieldId);
@@ -109,7 +110,7 @@ class FieldHandler {
         Object.entries(val).map(([k,v]) => `${k}: ${this.render(v)}`).join(', ');
     renderVal(val, old) {
         val = `${val}`;
-        if (val.match(/\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d.\d{3}.*/)) { // Date-time
+        if (val.match(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d.\d{3}.*/)) { // Date-time
             let d = new Date(val);
             if (d.getTime()) return fmtDate(d);
         }
@@ -142,9 +143,13 @@ var fieldHandlers = {
 </li>`;
     },
     // TODO: this is an async function: make a guard
-    comment: class extends FieldHandler { onUpdate = () => reloadActivitySection(); },
+    comment: class extends FieldHandler {
+        onUpdate = () => reloadActivitySection();
+    },
     // "components" uses array of obj.name => default works
-    created: class extends FieldHandler { render = val => fmtDate(new Date(val)); },
+    created: class extends FieldHandler {
+        render = val => fmtDate(new Date(val));
+    },
     // Sprint: array of: com.atlassian.greenhopper.service.sprint.Sprint@793bc0dc[id=7728,rapidViewId=467,state=CLOSED,name=BermudaTriangle- 2023-09-05,startDate=2023-08-21T23:31:00.000Z,endDate=2023-09-04T23:31:00.000Z,completeDate=2023-09-05T05:43:20.050Z,activatedDate=2023-08-22T02:50:13.883Z,sequence=7623,goal=,autoStartStop=false,synced=false]
     customfield_10557: class extends FieldHandler {
         renderVal(val) {
@@ -155,7 +160,7 @@ var fieldHandlers = {
     // Development: branches, pull requests, etc
     // TODO: use https://jira.mongodb.org/rest/dev-status/1.0/issue/summary?issueId=2452210 ?
     customfield_15850: class extends FieldHandler {
-        isEqual = (state1, state2) => state1.replace(/^.*devSummaryJson=/, "") === state2.replace(/^.*devSummaryJson=/, "");
+        stateForCmp = state => (state || "").replace(/^.*devSummaryJson=/, "");
         onUpdate(fieldId, newVal, oldVal) {
             let json = this.parse(newVal);
             if (!isObject(json?.cachedValue?.summary)) return;
@@ -255,7 +260,7 @@ function processNewStatus(status, oldStatus) {
     for (let fieldId of Object.keys(status.fields)) {
         let handler = fieldHandlerInstances[fieldId] || defaultHandler;
         if (!handler.isEqual(status.fields[fieldId], oldStatus?.fields?.[fieldId])) {
-            D&&DEBUG('Field update:', fieldId, ' => ', status.fields[fieldId]);
+            D&&DEBUG('Field update:', status.names?.[fieldId], fieldId, oldStatus?.fields?.[fieldId], ' => ', status.fields[fieldId]);
             handler.onUpdate(fieldId, status.fields[fieldId], oldStatus?.fields?.[fieldId], status.renderedFields?.[fieldId]);
         }
     }
