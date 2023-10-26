@@ -467,133 +467,72 @@ activate();
 // }
 
 
-/*
 
-status bar:
 
-<div id="instant-update-status">
-<style>
-#instant-update-status {
-  right: 0;
-  bottom: 0;
-  position: fixed;
-  background-color: #FFB8;
-  color: #888F;
-  padding: 0.1em 0.5em;
-  font-size: 8pt;
-  font-weight: 600;
-  z-index: 999;
-  pointer-events: none;
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+/* Shift-click on code scrollbar or resize corner expands the code */
+document.addEventListener("mousedown", ev =>
+  ev.shiftKey && !ev.altKey &&
+  ev.target?.id === "syntaxplugin" &&
+	/*ev.target.offsetHeight < ev.target.firstElementChild.offsetHeight && */ (
+    ev.target.style.maxHeight = '',
+	  ev.target.style.height = ev.target.style.height ? '' : '30em',
+    ev.target.style.resize="vertical",
+    event.preventDefault()
+  )
+);
+
+/* Alt+Shift-click on code adds resize corner */
+document.addEventListener("mousedown", ev =>
+  ev.shiftKey &&
+  ev.altKey &&
+  ev.target?.id != "syntaxplugin" &&
+  (e = ev.target.closest(".syntaxplugin#syntaxplugin")) && (
+//    (e.style.maxHeight = e.style.maxHeight ? "" : "30em"),
+		e.style.height=`${e.offsetHeight}px`,
+    e.style.maxHeight='',
+		e.style.resize="vertical",
+    event.preventDefault(),
+    ev.cancelBubble = true
+  ),
+true);
+
+/* Alt-click on code scrollbar enables code wrap */
+document.addEventListener("mousedown", ev => { if (ev.altKey && !ev.shiftKey && ev.target.closest(".syntaxplugin#syntaxplugin")) {
+	ev.preventDefault();
+	ev.cancelBubble = true;
+	let e = document.querySelector("#codewrapstyle");
+	if (e) {
+		e.remove();
+	} else {
+		document.head.insertAdjacentHTML("beforeEnd", `
+<style id="codewrapstyle">
+.syntaxplugin tr#syntaxplugin_code_and_gutter pre {
+	text-wrap: wrap;
+	word-break: break-all;
 }
-
-@keyframes spinner-rotate {
-  0%       { transform: rotate(0deg); }
-  100%     { transform: rotate(360deg); }
-}
-
 </style>
-        <svg id="instant-banner-update-icon" height="9" viewBox="0 0 24 24" width="9" fill="#888" fit="" preserveAspectRatio="xMidYMid meet" focusable="false" style="display: none;animation: spinner-rotate 700ms linear infinite;">
-        <path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z">
-        </path>
-        </svg>
-        Auto updated on:
-        <span id="instant-banner-timestamp" style="color:#555"></span>
-</div>
+`);
+	}
+}}, {capture: true});
 
-*/
+// Auto-expand links
+document.querySelector('#show-more-links-link')?.click();
 
-
-
-
-
-
-
-// /* Shift-click on code scrollbar expands the code */
-// document.addEventListener("mousedown", ev =>
-//   ev.shiftKey &&
-//   ev.target?.id === "syntaxplugin" && (
-//     (ev.target.style.maxHeight = ev.target.style.maxHeight ? "" : "30em"),
-//      event.preventDefault()
-//   )
-// );
-
-// document.addEventListener("mousedown", ev =>
-//   ev.shiftKey &&
-//   ev.altKey &&
-//   ev.target?.id != "syntaxplugin" &&
-//   (e = ev.target.closest(".syntaxplugin#syntaxplugin")) && (
-//     (e.style.maxHeight = e.style.maxHeight ? "" : "30em"),
-//     event.preventDefault(),
-//     ev.cancelBubble = true
-//   ),
-// true);
-
-// // Auto-expand links
-// document.querySelector('#show-more-links-link')?.click();
-
-// /* Alt-click on code scrollbar enables code wrap */
-// document.addEventListener("mousedown", ev => { if (ev.altKey && !ev.shiftKey && ev.target.closest(".syntaxplugin#syntaxplugin")) {
-//  ev.preventDefault();
-//  ev.cancelBubble = true;
-//  let e = document.querySelector("#codewrapstyle");
-//  if (e) {
-//    e.remove();
-//  } else {
-//    document.head.insertAdjacentHTML("beforeEnd", `
-// <style id="codewrapstyle">
-// .syntaxplugin tr#syntaxplugin_code_and_gutter pre {
-//  text-wrap: wrap;
-//  word-break: break-all;
-// }
-// </style>
-// `);
-//  }
-// }}, {capture: true});
-
-
-
-
-
-// document.head.insertAdjacentHTML("beforeEnd", `
-// <style>
-// /* Highlight backlog assignee */
-// a[rel^="backlog-"] {
-// 	background-color: #ff800040;
-// }
-//
-// /* Code quote wrap */
-// /*
-// .syntaxplugin tr#syntaxplugin_code_and_gutter pre {
-// 	text-wrap: wrap;
-// 	word-break: break-all;
-// }
-// */
-// /* Code quote font size */
-// .syntaxplugin tr#syntaxplugin_code_and_gutter pre {
-// 	font-size: 0.8em !important;
-// 	margin: 0 !important;
-// }
-//
-// /* Code highlight line on mouse hover */
-// .syntaxplugin tr#syntaxplugin_code_and_gutter:hover {
-// 	background-color: #E8E8E8;
-// }
-//
-// /* Line between the code lines */
-// .syntaxplugin tr#syntaxplugin_code_and_gutter {
-//   outline: 1px dashed #dcdce0;
-// }
-//
-// /* Proper wrapping for comments */
-// .twixi-block .verbose .flooded, .toggle-wrap .verbose .flooded {
-//     word-break: break-word;
-// }
-//
-// /* Edit crayon is always visible */
-// .overlay-icon {
-//   opacity: 0.5 !important;
-// 	z-index: auto !important;
-// }
-// </style>
-// `);
+// Auto-expand participants
+[...document.querySelectorAll('.ellipsis.shortener-expand')].forEach(e => e.click())
 
