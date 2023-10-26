@@ -59,7 +59,7 @@ document.addEventListener("mousedown", ev => { if (ev.altKey && !ev.shiftKey && 
 //var DEBUG = ()=>{};
 var D=true;
 function DEBUG(...args) {
-    console.log(`${DEBUG.caller.name}:`, ...args);
+    console.log(`[instant] ${DEBUG.caller.name}:`, ...args);
     // let ss = 0, fn = DEBUG.caller;
     // while (true) {
     //     try {
@@ -99,12 +99,10 @@ function fmtDate(d) {
 }
 
 var ex;
-var issueKey = null;
 function getIssueKey() {
-    return issueKey ||
-        (issueKey = document.querySelector(`meta[name="ajs-issue-key"]`)?.content) ||
-        (issueKey = location.pathname.split('/').slice(-1)) ||
-        null;
+    return (document.querySelector(`meta[name="ajs-issue-key"]`)?.content) ||
+        (location.pathname.split('/').slice(-1)[0]) ||
+        '';
 }
 
 async function getUpdate() {
@@ -209,68 +207,85 @@ async function updateComment(id) {
 </div>`);
 }
 
-var state = [
-    genState('assignee', st => st?.fields?.assignee, f => updateText('#assignee-val', '#assignee-val .user-hover', f?.displayName)),
-    genState('description', st => st?.fields?.description, f => updateText('#descriptionmodule', '#descriptionmodule .user-content-block', f)),
-    //genState('duedate', st => st?.fields?., f => update('#duedate', '# .', f)),
-    genState('fixVersions', st => st?.fields?.fixVersions, f => updateText([`#issuedetails #fixfor-val]`, `li`], '#fixfor-val', f.join(', '))),
-    genState('issuelinks', st => st?.fields?.issuelinks, f => updateHTML('#linkingmodule', '#linkingmodule .links-container', f.map(l => `<a href="https://jira.mongodb.org/browse/${l?.inwardIssue?.key}">${l?.inwardIssue?.key}</a> ${l?.inwardIssue?.fields?.summary}`).join('<BR>'))),
-    genState('issuetype', st => st?.fields?.issuetype, f => updateText([`#issuedetails #type-val`, `li`], '#type-val', f.name)),
-    genState('labels', st => st?.fields?.labels, f => updateText(['#wrap-labels', 'li'], '#wrap-labels ul.labels', f.join(" "))),
-    genState('priority', st => st?.fields?.priority, f => updateText(['#priority-val', 'li'], '#priority-val', f.name)),
-    genState('status', st => st?.fields?.status, f => updateText(['#status-val', 'li'], '#status-val', f.name)),
-    genState('summary', st => st?.fields?.summary, f => updateText('#summary-val', '#summary-val', f)),
-    genState('updated', st => st?.fields?.updated, f => updateText(['#updated-val', 'dl'], '#updated-val', fmtDate(new Date(f)))),
-    genState('votes', st => st?.fields?.votes?.votes, f => updateText(['#vote-data', 'dl'], '#vote-data', f)),
-    genState('watches', st => st?.fields?.watches?.watchCount, f => updateText(['#watcher-data', 'dl'], '#watcher-data', f)),
-    genState('comments', st => st?.fields?.comment, (f, lf) => {
-        // let fs = f.reduce((a, b) => Object.assign(a, {[b.id]: b}), {});
-        // let lfs = lf.reduce((a, b) => Object.assign(a, {[b.id]: b}), {});
-        f = f.comments; lf = lf.comments;
-        let runaway = 0, e;
-        for (let fi = 0, lfi = 0; fi < f.length || lfi < lf.length; ) {
-            D&&DEBUG('comments', `[${fi} : ${lfi}]`);
-            if (++runaway > 1000) break;
-            let d = (fi < f.length ? parseInt(f[fi].id) : 10000000000) - (lfi < lf.length ? parseInt(lf[lfi].id) : 10000000000);
-            D&&DEBUG('comments', `{${fi < f.length ? parseInt(f[fi].id) : 10000000000} : ${lfi < lf.length ? parseInt(lf[lfi].id) : 10000000000}}`);
-            //QS('#activitymodule .mod-content');
-            //await (await fetch('https://jira.mongodb.org/browse/WT-11460?page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel&showAll=true', {headers: {"X-Pjax": "true", "X-Requested-With": "XMLHttpRequest"}})).text()
-            // https://jira.mongodb.org/rest/api/2/issue/WT-11460/comment/5688331?expand=renderedBody
-            if (d < 0) {
-                // new state has a comment where the old one didn't: inserted comment (???)
-                let id = f[fi].id;
-                D&&DEBUG('comments', 'insert', id);
-                (e = QS(`#comment-${id}`)) && (e.style.backgroundColor = "#B0FF0060");
-                updateComment(id);
-                fi++;
-            } else if (d > 0) {
-                // new state doesn't have a comment: deleted comment
-                let id = lf[lfi].id;
-                D&&DEBUG('comments', 'delete', id);
-                (e = QS(`#comment-${id}`)) && (e.style.backgroundColor = "#FF000040");
-                lfi++;
-            } else {
-                // match
-                if (JSON.stringify(f[fi]) != JSON.stringify(lf[lfi])) {
-                    let id = lf[lfi].id;
-                    D&&DEBUG('comments', 'edit', id);
-                    (e = QS(`#comment-${id}`)) && (e.style.backgroundColor = "#FFFF0040");
-                    updateComment(id);
-                }
-                fi++; lfi++;
-            }
-        }
-    }),
-]
+var state;
+function initState() {
+  DEBUG();
+  state = [
+      genState('assignee',    st => st?.fields?.assignee,            f => updateText('#assignee-val', '#assignee-val .user-hover', f?.displayName)),
+      genState('description', st => st?.fields?.description,         f => updateText('#descriptionmodule', '#descriptionmodule .user-content-block', f)),
+      //genState('duedate',     st => st?.fields?.,                    f => update('#duedate', '# .', f)),
+      genState('fixVersions', st => st?.fields?.fixVersions,         f => updateText([`#issuedetails #fixfor-val]`, `li`], '#fixfor-val', f.join(', '))),
+      genState('issuelinks',  st => st?.fields?.issuelinks,          f => updateHTML('#linkingmodule', '#linkingmodule .links-container', f.map(l =>
+          `<a href="https://jira.mongodb.org/browse/${l?.inwardIssue?.key}">${l?.inwardIssue?.key}</a> ${l?.inwardIssue?.fields?.summary}`).join('<BR>'))),
+      genState('issuetype',   st => st?.fields?.issuetype,           f => updateText([`#issuedetails #type-val`, `li`], '#type-val', f.name)),
+      genState('labels',      st => st?.fields?.labels,              f => updateText(['#wrap-labels', 'li'], '#wrap-labels ul.labels', f.join(" "))),
+      genState('priority',    st => st?.fields?.priority,            f => updateText(['#priority-val', 'li'], '#priority-val', f.name)),
+      genState('status',      st => st?.fields?.status,              f => updateText(['#status-val', 'li'], '#status-val', f.name)),
+      genState('summary',     st => st?.fields?.summary,             f => updateText('#summary-val', '#summary-val', f)),
+      genState('updated',     st => st?.fields?.updated,             f => updateText(['#updated-val', 'dl'], '#updated-val', fmtDate(new Date(f)))),
+      genState('votes',       st => st?.fields?.votes?.votes,        f => updateText(['#vote-data', 'dl'], '#vote-data', f)),
+      genState('watches',     st => st?.fields?.watches?.watchCount, f => updateText(['#watcher-data', 'dl'], '#watcher-data', f)),
+      genState('comments',    st => st?.fields?.comment, (f, lf) => {
+          // let fs = f.reduce((a, b) => Object.assign(a, {[b.id]: b}), {});
+          // let lfs = lf.reduce((a, b) => Object.assign(a, {[b.id]: b}), {});
+          f = f.comments; lf = lf.comments;
+          let runaway = 0, e;
+          for (let fi = 0, lfi = 0; fi < f.length || lfi < lf.length; ) {
+              D&&DEBUG('comments', `[${fi} : ${lfi}]`);
+              if (++runaway > 1000) break;
+              let d = (fi < f.length ? parseInt(f[fi].id) : 10000000000) - (lfi < lf.length ? parseInt(lf[lfi].id) : 10000000000);
+              D&&DEBUG('comments', `{${fi < f.length ? parseInt(f[fi].id) : 10000000000} : ${lfi < lf.length ? parseInt(lf[lfi].id) : 10000000000}}`);
+              //QS('#activitymodule .mod-content');
+              //await (await fetch('https://jira.mongodb.org/browse/WT-11460?page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel&showAll=true', {headers: {"X-Pjax": "true", "X-Requested-With": "XMLHttpRequest"}})).text()
+              // https://jira.mongodb.org/rest/api/2/issue/WT-11460/comment/5688331?expand=renderedBody
+              if (d < 0) {
+                  // new state has a comment where the old one didn't: inserted comment (???)
+                  let id = f[fi].id;
+                  D&&DEBUG('comments', 'insert', id);
+                  (e = QS(`#comment-${id}`)) && (e.style.backgroundColor = "#B0FF0060");
+                  updateComment(id);
+                  fi++;
+              } else if (d > 0) {
+                  // new state doesn't have a comment: deleted comment
+                  let id = lf[lfi].id;
+                  D&&DEBUG('comments', 'delete', id);
+                  (e = QS(`#comment-${id}`)) && (e.style.backgroundColor = "#FF000040");
+                  lfi++;
+              } else {
+                  // match
+                  if (JSON.stringify(f[fi]) != JSON.stringify(lf[lfi])) {
+                      let id = lf[lfi].id;
+                      D&&DEBUG('comments', 'edit', id);
+                      (e = QS(`#comment-${id}`)) && (e.style.backgroundColor = "#FFFF0040");
+                      updateComment(id);
+                  }
+                  fi++; lfi++;
+              }
+          }
+      }),
+  ];
+}
 
 let time = () => new Date().getTime();
+var issueKey = "";
 var checking = false;
 var lastUpdate = '';
 var lastCheckT = 0;
 var nextCheckTimer = 0;
 
 async function update() {
-    D&&DEBUG('Checking update quick');
+    let key = getIssueKey();
+    if (issueKey != key) {
+        D&DEBUG(`new issue key: ${key}`);
+        initState();
+        lastUpdate = '';
+        issueKey = key;
+    }
+    if (!key) {
+        D&&DEBUG('Not a ticket page');
+        return;
+    }
+    D&&DEBUG('Checking update quick', key, !!key);
     let curUpdate = await getUpdate();
     D&&DEBUG(`Checking update quick: ${curUpdate} ${lastUpdate}`);
     if (curUpdate === lastUpdate) return;
@@ -294,6 +309,10 @@ async function checkUpdate() {
         console.log(ex = exx);
     } finally {
         checking = false;
+        if (!getIssueKey()) {
+            QS('#instant-update-status')?.remove();
+            return;
+        }
         let msg = fmtDate(new Date());
         if (ex) msg += ` <span style="color:red" title="${ex}">[ERROR]</span>`;
         (e = QS(`#instant-banner-update-icon`)) && (e.style.display = "none");
@@ -341,10 +360,14 @@ function onUserActive() {
     if (checking || nextCheckTimer) return;
     let t = time();
     let dt = t - lastCheckT;
-    D&&DEBUG(`dt = ${dt}`);
+    //D&&DEBUG(`dt = ${dt}`);
     if (dt >= 15000) {
+        D&&DEBUG(`dt = ${dt} - Update now`);
         checkUpdate();
+    } else if (dt < 5000) {
+        //D&&DEBUG(`dt = ${dt} - Ignoring too frequent checks`);
     } else {
+        D&&DEBUG(`dt = ${dt} - Hold update`);
         dt = 15000 - dt;
         D&&DEBUG(`Checking in ${dt}`);
         nextCheckTimer = setTimeout(async() => {
@@ -354,8 +377,11 @@ function onUserActive() {
     }
 }
 
-function activateIfTicket() {
-    if (!QS('.issue-navigator')) return;
+function activate() {
+    //if (!QS('.issue-navigator')) {
+    //    D&DEBUG('Not a ticket page');
+    //    return;
+    //}
     [
       'blur', 'focus',
       'mousemove', 'mousewheel', 'mouseup',
@@ -363,6 +389,5 @@ function activateIfTicket() {
     ].forEach(ev => window.addEventListener(ev, onUserActive));
     onUserActive();
 }
-activateIfTicket();
-
+activate();
 
