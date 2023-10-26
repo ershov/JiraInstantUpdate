@@ -29,9 +29,9 @@ function DEBUG(...args) { console.log(`[instant] ${DEBUG.caller.name}:`, ...args
 var QS = (q,e) => (e || document).querySelector(q);
 var QA = (q,e) => [...(e || document).querySelectorAll(q)];
 
-function escapeHTML(s) { return s.replace(/[&<>"'`]/g, x => `&#${x.charCodeAt(0)};`); }
+function escapeHTML(s) { return (`${s}`).replace(/[&<>"'`]/g, x => `&#${x.charCodeAt(0)};`); }
 
-function normalizeText(s) { return s.replace(/\s+/g, " ").trim(); }
+function normalizeText(s) { return (`${s}`).replace(/\s+/g, " ").trim(); }
 
 function isObject(x) { return typeof x === 'object' && x !== null; }  // this is to fix: typeof null === object
 
