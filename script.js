@@ -610,6 +610,13 @@ document.addEventListener("mousedown", ev => { if (ev.altKey && !ev.shiftKey && 
 	}
 }}, {capture: true});
 
+// Don't edit the description on simple click - use crayon
+document.querySelector('#description-val')?.addEventListener("click", ev =>
+    (!ev.srcElement.closest('.aui-icon, button') ||
+        (ev.shiftKey||ev.altKey||ev.ctrlKey||ev.metaKey)
+    ) && ev.stopPropagation(),
+  {capture: true, passive: false, });
+
 // Auto-expand links
 document.querySelector('#show-more-links-link')?.click();
 
