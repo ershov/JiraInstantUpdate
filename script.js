@@ -465,6 +465,15 @@ async function checkUpdate() {
     }
 }
 
+
+function LoadNewer() {
+    if (QS('button.collapsed-actions[busy]') ||
+        QA('button.collapsed-actions').map(e => e.innerText.indexOf('Load 10 newer') != -1 && e.click()).length)
+    {
+        setTimeout(LoadNewer, 50);
+    }
+}
+
 function scheduleNextCheckIfNeeded() {
     //D&&DEBUG(`checking = ${checking}   nextCheckTimer = ${nextCheckTimer}`);
     if (checking) return;
@@ -474,6 +483,7 @@ function scheduleNextCheckIfNeeded() {
         if (nextCheckTimer) { clearTimeout(nextCheckTimer); nextCheckTimer = 0; }
         lastCheckT = 0;
         QS('#instant-update-status')?.remove();
+        setTimeout(LoadNewer, 500);
     }
     if (nextCheckTimer) return;
     let t = time();
@@ -511,6 +521,8 @@ function activate() {
       'keyup',
     ].forEach(ev => window.addEventListener(ev, onUserActive, {passive: true}));
     onUserActive();
+
+    document.addEventListener("click", ev => setTimeout(LoadNewer, 500));
 
     // Check every 10 minutes to update the page icon if the user is not active.
     // Don't check if the icon already indicates an update.
