@@ -26,6 +26,22 @@ function DEBUG(...args) { console.log(`[instant] ${DEBUG.caller.name}:`, ...args
 //    console.log(`${"  ".repeat(ss)}${DEBUG.caller.name}:`, ...args);
 //}
 
+async function SleepFor(timeout) { return new Promise((res,rej) => setTimeout(()=>res(), timeout)); }
+async function WaitFor(pred, timeout = 30000) {
+  let t0 = (new Date()).getTime();
+  return new Promise((res,rej) => {
+    let timer = setInterval(()=>{
+      if (pred()) {
+        clearInterval(timer);
+        res();
+      } else if (timeout && (new Date()).getTime() - t0 > timeout) {
+        clearInterval(timer);
+        rej(["Timeout", pred, timeout]);
+      }
+    }, 200);
+  });
+}
+
 var QS = (q,e) => (e || document).querySelector(q);
 var QA = (q,e) => [...(e || document).querySelectorAll(q)];
 
@@ -292,6 +308,8 @@ function processNewStatus(status, oldStatus) {
 function getActiveTab() { return QS(`#issue-tabs > .menu-item.active`)?.id; }
 
 async function reloadActivitySection() {
+    LoadNewer();
+    if (loadNewerTimer) await WaitFor(() => !loadNewerTimer);
     let tabPage = '';
     //let isFullHistory = !QS(`#activitymodule .show-more-comments.aui-button`);
     switch (getActiveTab()) {
@@ -439,12 +457,21 @@ async function checkUpdate() {
 }
 
 
+var loadNewerTimer = 0;
 function LoadNewer() {
-    if (QS('button.collapsed-actions[busy]') ||
-        QA('button.collapsed-actions').map(e => e.innerText.indexOf('Load 10 newer') != -1 && e.click()).length)
-    {
-        setTimeout(LoadNewer, 50);
+    if (loadNewerTimer) return;
+    let loadFunc = () => {
+        if (QS('button.collapsed-actions[busy]') ||
+            QA('button.collapsed-actions').map(e => e.innerText.indexOf('Load 10 newer') != -1 && e.click()).length)
+        {
+            loadNewerTimer = setTimeout(loadFunc, 50);
+            return true;
+        } else {
+            loadNewerTimer = 0;
+            return false;
+        }
     }
+    return loadFunc();
 }
 
 function scheduleNextCheckIfNeeded() {
@@ -456,7 +483,7 @@ function scheduleNextCheckIfNeeded() {
         if (nextCheckTimer) { clearTimeout(nextCheckTimer); nextCheckTimer = 0; }
         lastCheckT = 0;
         QS('#instant-update-status')?.remove();
-        setTimeout(LoadNewer, 500);
+        setTimeout(LoadNewer, 150);
     }
     if (nextCheckTimer) return;
     let t = time();
@@ -495,7 +522,8 @@ function activate() {
     ].forEach(ev => window.addEventListener(ev, onUserActive, {passive: true}));
     onUserActive();
 
-    document.addEventListener("click", ev => setTimeout(LoadNewer, 500));
+    document.addEventListener("click", ev => setTimeout(LoadNewer, 150));
+    setInterval(LoadNewer, 300);
 
     // Check every 10 minutes to update the page icon if the user is not active.
     // Don't check if the icon already indicates an update.
