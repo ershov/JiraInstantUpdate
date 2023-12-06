@@ -309,7 +309,7 @@ function getActiveTab() { return QS(`#issue-tabs > .menu-item.active`)?.id; }
 
 async function reloadActivitySection() {
     LoadNewer();
-    if (loadNewerTimer) await WaitFor(() => !loadNewerTimer);
+
     let tabPage = '';
     //let isFullHistory = !QS(`#activitymodule .show-more-comments.aui-button`);
     switch (getActiveTab()) {
@@ -341,6 +341,8 @@ async function reloadActivitySection() {
     let e = document.createElement('template');
     e.innerHTML = text;
     [...e.content.querySelectorAll('* + .concise')].forEach(e => e.remove());
+
+    await LoadNewerSync();
 
     let getTimestamp = e => new Date(e.querySelector('.livestamp')?.getAttribute("datetime")).getTime();
     let sortFn = (a,b) => getTimestamp(a) - getTimestamp(b);   // Always sort ascending
@@ -472,6 +474,10 @@ function LoadNewer() {
         }
     }
     return loadFunc();
+}
+async function LoadNewerSync() {
+    LoadNewer();
+    if (loadNewerTimer) await WaitFor(() => !loadNewerTimer);
 }
 
 function scheduleNextCheckIfNeeded() {
